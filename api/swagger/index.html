@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>API Reference — Item Service</title>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css" />
+  <style>
+    .top-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      background: #1b1b1b;
+      color: white;
+      font-family: sans-serif;
+      border-bottom: 1px solid #333;
+    }
+
+    .top-bar input {
+      background: #2a2a2a;
+      border: 1px solid #444;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 4px;
+      width: 300px;
+      font-size: 13px;
+    }
+
+    .top-bar button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 6px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.2s;
+    }
+
+    .top-bar button:hover {
+      background: #0056b3;
+    }
+
+    .top-bar label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #aaa;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="top-bar">
+    <label>BASE URL OVERRIDE</label>
+    <input type="text" id="custom-host" placeholder="e.g. http://localhost:8080">
+    <button onclick="applyHost()">Apply & Refresh</button>
+  </div>
+  <div id="swagger-ui"></div>
+  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
+  <script>
+    function applyHost() {
+      const val = document.getElementById('custom-host').value;
+      localStorage.setItem('swagger-base-url', val);
+      location.reload();
+    }
+
+    window.onload = function () {
+      const savedHost = localStorage.getItem('swagger-base-url') || "";
+      document.getElementById('custom-host').value = savedHost;
+
+      const ui = SwaggerUIBundle({
+        url: "/swagger/spec",
+        dom_id: "#swagger-ui",
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIStandalonePreset
+        ],
+        plugins: [
+          SwaggerUIBundle.plugins.DownloadUrl
+        ],
+        layout: "StandaloneLayout",
+        persistAuthorization: true,
+        requestInterceptor: (req) => {
+          const override = localStorage.getItem('swagger-base-url');
+          if (override && override.trim() !== "" && req.url.includes("/v1/")) {
+            try {
+              const url = new URL(req.url);
+              const base = new URL(override.endsWith('/') ? override : override + '/');
+              req.url = base.origin + url.pathname + url.search;
+              console.log("Redirecting request to:", req.url);
+            } catch (e) {
+              console.error("Invalid override URL:", override);
+            }
+          }
+          return req;
+        }
+      });
+      window.ui = ui;
+    };
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+package admin.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "api/proto/options/v1/auth_rule.proto";
+
+option go_package = "github.com/squall-chua/go-grpc-auth/api/v1/admin;admin";
+
+service OIDCClientService {
+  rpc RegisterClient(RegisterClientRequest) returns (OIDCClient) {
+    option (google.api.http) = {
+      post: "/v1/admin/oidc/clients"
+      body: "*"
+    };
+    option (options.v1.rule) = {
+      roles: ["admin", "superadmin"]
+    };
+  }
+
+  rpc GetClient(GetClientRequest) returns (OIDCClient) {
+    option (google.api.http) = {
+      get: "/v1/admin/oidc/clients/{client_id}"
+    };
+    option (options.v1.rule) = {
+      roles: ["admin", "superadmin"]
+    };
+  }
+
+  rpc UpdateClient(UpdateClientRequest) returns (OIDCClient) {
+    option (google.api.http) = {
+      patch: "/v1/admin/oidc/clients/{client_id}"
+      body: "*"
+    };
+    option (options.v1.rule) = {
+      roles: ["admin", "superadmin"]
+    };
+  }
+
+  rpc DeleteClient(DeleteClientRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/v1/admin/oidc/clients/{client_id}"
+    };
+    option (options.v1.rule) = {
+      roles: ["admin", "superadmin"]
+    };
+  }
+
+  rpc ListClients(ListClientsRequest) returns (ListClientsResponse) {
+    option (google.api.http) = {
+      get: "/v1/admin/oidc/clients"
+    };
+    option (options.v1.rule) = {
+      roles: ["admin", "superadmin"]
+    };
+  }
+}
+
+message OIDCClient {
+  string client_id = 1;
+  string client_secret = 2;
+  string name = 3;
+  repeated string redirect_uris = 4;
+  repeated string allowed_scopes = 5;
+  bool skip_consent = 6;
+  string namespace = 7;
+}
+
+message RegisterClientRequest {
+  string name = 1;
+  repeated string redirect_uris = 2;
+  repeated string allowed_scopes = 3;
+  bool skip_consent = 4;
+  string namespace = 5;
+}
+
+message GetClientRequest {
+  string client_id = 1;
+}
+
+message UpdateClientRequest {
+  string client_id = 1;
+  string name = 2;
+  repeated string redirect_uris = 3;
+  repeated string allowed_scopes = 4;
+  bool skip_consent = 5;
+}
+
+message DeleteClientRequest {
+  string client_id = 1;
+}
+
+message ListClientsRequest {
+  string namespace = 1;
+}
+
+message ListClientsResponse {
+  repeated OIDCClient clients = 1;
+}

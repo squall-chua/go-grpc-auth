@@ -1,0 +1,106 @@
+syntax = "proto3";
+
+package admin.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "api/proto/options/v1/auth_rule.proto";
+
+option go_package = "github.com/squall-chua/go-grpc-auth/api/v1/admin;admin";
+
+service NamespaceService {
+  rpc CreateNamespace(CreateNamespaceRequest) returns (Namespace) {
+    option (google.api.http) = {
+      post: "/v1/admin/namespaces"
+      body: "*"
+    };
+    option (options.v1.rule) = {
+      roles: ["superadmin"]
+    };
+  }
+
+  rpc GetNamespace(GetNamespaceRequest) returns (Namespace) {
+    option (google.api.http) = {
+      get: "/v1/admin/namespaces/{id}"
+    };
+    option (options.v1.rule) = {
+      roles: ["superadmin"]
+    };
+  }
+
+  rpc UpdateNamespaceConfig(UpdateNamespaceConfigRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      patch: "/v1/admin/namespaces/{id}/config"
+      body: "*"
+    };
+    option (options.v1.rule) = {
+      roles: ["superadmin"]
+    };
+  }
+
+  rpc ListNamespaces(ListNamespacesRequest) returns (ListNamespacesResponse) {
+    option (google.api.http) = {
+      get: "/v1/admin/namespaces"
+    };
+    option (options.v1.rule) = {
+      roles: ["superadmin"]
+    };
+  }
+
+  rpc DeleteNamespace(DeleteNamespaceRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/v1/admin/namespaces/{id}"
+    };
+    option (options.v1.rule) = {
+      roles: ["superadmin"]
+    };
+  }
+}
+
+message Namespace {
+  string id = 1;
+  string name = 2;
+  NamespaceConfig config = 3;
+}
+
+message NamespaceConfig {
+  bool mfa_required = 1;
+  repeated string allowed_social_providers = 2;
+  PasswordPolicy password_policy = 3;
+}
+
+message PasswordPolicy {
+  int32 min_length = 1;
+  bool require_uppercase = 2;
+  bool require_lowercase = 3;
+  bool require_number = 4;
+  bool require_special = 5;
+}
+
+message CreateNamespaceRequest {
+  string name = 1;
+  NamespaceConfig config = 2;
+}
+
+message GetNamespaceRequest {
+  string id = 1;
+}
+
+message UpdateNamespaceConfigRequest {
+  string id = 1;
+  NamespaceConfig config = 2;
+}
+
+message ListNamespacesRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListNamespacesResponse {
+  repeated Namespace namespaces = 1;
+  string next_page_token = 2;
+}
+
+message DeleteNamespaceRequest {
+  string id = 1;
+}

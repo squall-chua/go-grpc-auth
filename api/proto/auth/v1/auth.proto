@@ -1,0 +1,166 @@
+syntax = "proto3";
+
+package auth.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "api/proto/options/v1/auth_rule.proto";
+
+option go_package = "github.com/squall-chua/go-grpc-auth/api/v1/auth;auth";
+
+service AuthService {
+  // Authentication
+  rpc Register(RegisterRequest) returns (TokenPair) {
+    option (google.api.http) = {
+      post: "/v1/auth/register"
+      body: "*"
+    };
+  }
+
+  rpc Login(LoginRequest) returns (TokenPair) {
+    option (google.api.http) = {
+      post: "/v1/auth/login"
+      body: "*"
+    };
+  }
+
+  rpc RefreshToken(RefreshTokenRequest) returns (TokenPair) {
+    option (google.api.http) = {
+      post: "/v1/auth/refresh"
+      body: "*"
+    };
+  }
+
+  rpc Logout(LogoutRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v1/auth/logout"
+      body: "*"
+    };
+  }
+
+  rpc ChangePassword(ChangePasswordRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v1/auth/password/change"
+      body: "*"
+    };
+    option (options.v1.rule) = {
+      allow_any: true
+    };
+  }
+
+  // Token Validation (used by interceptors)
+  rpc ValidateToken(ValidateTokenRequest) returns (Principal) {
+    option (google.api.http) = {
+      get: "/v1/auth/validate"
+    };
+  }
+
+  // MFA
+  rpc InitiateMFA(InitiateMFARequest) returns (InitiateMFAResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/mfa/initiate"
+      body: "*"
+    };
+  }
+
+  rpc VerifyMFA(VerifyMFARequest) returns (TokenPair) {
+    option (google.api.http) = {
+      post: "/v1/auth/mfa/verify"
+      body: "*"
+    };
+  }
+
+  // Social Login
+  rpc GetSocialAuthURL(SocialAuthURLRequest) returns (SocialAuthURLResponse) {
+    option (google.api.http) = {
+      get: "/v1/auth/social/{provider}/url"
+    };
+  }
+
+  rpc HandleSocialCallback(SocialCallbackRequest) returns (TokenPair) {
+    option (google.api.http) = {
+      get: "/v1/auth/social/{provider}/callback"
+    };
+  }
+}
+
+message RegisterRequest {
+  string email = 1;
+  string username = 2;
+  string password = 3;
+  string namespace = 4;
+}
+
+message LoginRequest {
+  string login = 1; // email or username
+  string password = 2;
+  string namespace = 3;
+}
+
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+message LogoutRequest {
+  string access_token = 1;
+  string refresh_token = 2;
+}
+
+message ChangePasswordRequest {
+  string current_password = 1;
+  string new_password = 2;
+}
+
+message ValidateTokenRequest {
+  string token = 1;
+}
+
+message TokenPair {
+  string access_token = 1;
+  string refresh_token = 2;
+  string id_token = 3;
+  string token_type = 4;
+  int32 expires_in = 5;
+  bool mfa_required = 6;
+  string mfa_token = 7;
+}
+
+message Principal {
+  string user_id = 1;
+  string namespace = 2;
+  repeated string roles = 3;
+  repeated string permissions = 4;
+  int64 expires_at = 5;
+}
+
+message InitiateMFARequest {
+  string mfa_token = 1;
+  string method = 2; // totp, email, sms
+}
+
+message InitiateMFAResponse {
+  string secret = 1;
+  string qr_code_url = 2;
+}
+
+message VerifyMFARequest {
+  string mfa_token = 1;
+  string code = 2;
+}
+
+message SocialAuthURLRequest {
+  string provider = 1;
+  string namespace = 2;
+  string state = 3;
+}
+
+message SocialAuthURLResponse {
+  string url = 1;
+}
+
+message SocialCallbackRequest {
+  string provider = 1;
+  string code = 2;
+  string state = 3;
+  string namespace = 4;
+}

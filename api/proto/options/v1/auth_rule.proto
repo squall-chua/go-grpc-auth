@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package options.v1;
+
+import "google/protobuf/descriptor.proto";
+
+option go_package = "github.com/squall-chua/go-grpc-auth/api/v1/options;options";
+
+message AuthRule {
+  repeated string roles = 1;
+  repeated string permissions = 2;
+  bool allow_any = 3;
+}
+
+extend google.protobuf.MethodOptions {
+  AuthRule rule = 50000;
+}
