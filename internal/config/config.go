@@ -3,6 +3,8 @@ package config
 import (
 	"flag"
 	"os"
+	"strconv"
+	"time"
 )
 
 type Config struct {
@@ -19,6 +21,12 @@ type Config struct {
 	GitHubClientID     string
 	GitHubClientSecret string
 	GitHubRedirectURL  string
+	// Rate Limiting
+	RateLimitRequests int
+	RateLimitWindow   time.Duration
+	// Token Durations
+	AccessTokenDuration  time.Duration
+	RefreshTokenDuration time.Duration
 }
 
 func Load() *Config {
@@ -39,6 +47,14 @@ func Load() *Config {
 	flag.StringVar(&cfg.GitHubClientSecret, "github-client-secret", getEnv("GITHUB_CLIENT_SECRET", ""), "GitHub Client Secret")
 	flag.StringVar(&cfg.GitHubRedirectURL, "github-redirect-url", getEnv("GITHUB_REDIRECT_URL", "http://localhost:8080/v1/auth/social/github/callback"), "GitHub Redirect URL")
 
+	// Rate Limiting
+	flag.IntVar(&cfg.RateLimitRequests, "rate-limit-requests", getEnvInt("RATE_LIMIT_REQUESTS", 5), "Max requests per window")
+	flag.DurationVar(&cfg.RateLimitWindow, "rate-limit-window", getEnvDuration("RATE_LIMIT_WINDOW", 1*time.Minute), "Rate limit window duration")
+
+	// Token Durations
+	flag.DurationVar(&cfg.AccessTokenDuration, "access-token-duration", getEnvDuration("ACCESS_TOKEN_DURATION", 15*time.Minute), "Access token duration")
+	flag.DurationVar(&cfg.RefreshTokenDuration, "refresh-token-duration", getEnvDuration("REFRESH_TOKEN_DURATION", 7*24*time.Hour), "Refresh token duration")
+
 	flag.Parse()
 
 	return cfg
@@ -47,6 +63,24 @@ func Load() *Config {
 func getEnv(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok {
 		return value
+	}
+	return fallback
+}
+
+func getEnvInt(key string, fallback int) int {
+	if value, ok := os.LookupEnv(key); ok {
+		if i, err := strconv.Atoi(value); err == nil {
+			return i
+		}
+	}
+	return fallback
+}
+
+func getEnvDuration(key string, fallback time.Duration) time.Duration {
+	if value, ok := os.LookupEnv(key); ok {
+		if d, err := time.ParseDuration(value); err == nil {
+			return d
+		}
 	}
 	return fallback
 }

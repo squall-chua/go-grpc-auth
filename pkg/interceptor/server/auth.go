@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
 	"time"
@@ -18,7 +19,8 @@ import (
 )
 
 const (
-	PrincipalKey string = "principal"
+	PrincipalKey       string = "principal"
+	OriginPrincipalKey string = "origin-principal"
 )
 
 type cacheEntry struct {
@@ -57,12 +59,22 @@ func (i *AuthInterceptor) Unary() grpc.UnaryServerInterceptor {
 			ctx = context.WithValue(ctx, PrincipalKey, principal)
 		}
 
+		// 4. Extract Origin Principal
+		if md, ok := metadata.FromIncomingContext(ctx); ok {
+			if origins := md.Get("origin-principal"); len(origins) > 0 {
+				var op auth.Principal
+				if err := json.Unmarshal([]byte(origins[0]), &op); err == nil {
+					ctx = context.WithValue(ctx, OriginPrincipalKey, &op)
+				}
+			}
+		}
+
 		return handler(ctx, req)
 	}
 }
 
 func (i *AuthInterceptor) authenticate(ctx context.Context, rule *options.AuthRule) (*auth.Principal, error) {
-	if rule == nil || rule.AllowAny {
+	if rule != nil && rule.Public {
 		return nil, nil
 	}
 
@@ -91,12 +103,12 @@ func (i *AuthInterceptor) authenticate(ctx context.Context, rule *options.AuthRu
 	entry, found := i.cache[token]
 	i.mu.RUnlock()
 
-	if found && time.Now().Before(entry.expiresAt) {
+	if found && time.Now().UTC().Before(entry.expiresAt) {
 		return i.authorize(entry.principal, rule)
 	}
 
 	// Validate with Auth Service
-	resp, err := i.authClient.ValidateToken(context.Background(), &auth.ValidateTokenRequest{Token: token})
+	resp, err := i.authClient.ValidateToken(ctx, &auth.ValidateTokenRequest{Token: token})
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +117,7 @@ func (i *AuthInterceptor) authenticate(ctx context.Context, rule *options.AuthRu
 	i.mu.Lock()
 	i.cache[token] = cacheEntry{
 		principal: resp,
-		expiresAt: time.Now().Add(30 * time.Second),
+		expiresAt: time.Now().UTC().Add(30 * time.Second),
 	}
 	i.mu.Unlock()
 

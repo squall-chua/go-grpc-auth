@@ -6,7 +6,7 @@
           <div class="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-primary-500/20">
             <UIcon name="i-heroicons-shield-check-20-solid" class="w-5 h-5" />
           </div>
-          <span class="text-xl font-bold tracking-tight">Antigravity<span class="text-primary-500">Auth</span></span>
+          <span class="text-xl font-bold tracking-tight">{{ config.public.name }}<span class="text-primary-500">Auth</span></span>
         </div>
         
         <nav class="hidden md:flex items-center gap-6">
@@ -39,7 +39,7 @@
 
     <footer class="border-t border-slate-200 dark:border-slate-800 py-12 bg-white dark:bg-slate-900">
       <div class="container mx-auto px-4 text-center text-slate-500 text-sm">
-        <p>&copy; 2026 Antigravity Auth. Built with Precision.</p>
+        <p>&copy; 2026 {{ config.public.name }} Auth. Built with Precision.</p>
       </div>
     </footer>
   </div>
@@ -47,6 +47,7 @@
 
 <script setup>
 import { useAuthStore } from '~/stores/auth'
+const config = useRuntimeConfig()
 const auth = useAuthStore()
 const colorMode = useColorMode()
 

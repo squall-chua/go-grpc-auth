@@ -2,16 +2,21 @@ package authclient
 
 import (
 	"context"
+	"sync"
+	"time"
 
 	"github.com/squall-chua/go-grpc-auth/api/v1/admin"
 	"github.com/squall-chua/go-grpc-auth/api/v1/auth"
 	"github.com/squall-chua/go-grpc-auth/pkg/interceptor/client"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type Client struct {
-	Auth  auth.AuthServiceClient
-	Admin admin.AdminServiceClient
+	Auth       auth.AuthServiceClient
+	Admin      admin.AdminServiceClient
+	OIDC       auth.OIDCServiceClient
+	OIDCClient admin.OIDCClientServiceClient
 }
 
 // NewClient creates a new auth client. If provider is nil, no auth interceptor is added.
@@ -27,8 +32,10 @@ func NewClient(target string, provider client.TokenProvider, opts ...grpc.DialOp
 	}
 
 	return &Client{
-		Auth:  auth.NewAuthServiceClient(conn),
-		Admin: admin.NewAdminServiceClient(conn),
+		Auth:       auth.NewAuthServiceClient(conn),
+		Admin:      admin.NewAdminServiceClient(conn),
+		OIDC:       auth.NewOIDCServiceClient(conn),
+		OIDCClient: admin.NewOIDCClientServiceClient(conn),
 	}, nil
 }
 
@@ -57,11 +64,8 @@ func (c *Client) RefreshToken(ctx context.Context, refreshToken string) (*auth.T
 	})
 }
 
-func (c *Client) Logout(ctx context.Context, accessToken, refreshToken string) error {
-	_, err := c.Auth.Logout(ctx, &auth.LogoutRequest{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-	})
+func (c *Client) Logout(ctx context.Context) error {
+	_, err := c.Auth.Logout(ctx, &emptypb.Empty{})
 	return err
 }
 
@@ -95,11 +99,11 @@ func (c *Client) VerifyMFA(ctx context.Context, mfaToken, code string) (*auth.To
 
 // AdminService Methods
 
-func (c *Client) ListUsers(ctx context.Context, namespace string, pageSize int32, pageToken string) (*admin.ListUsersResponse, error) {
+func (c *Client) ListUsers(ctx context.Context, namespace string, pageSize, page int32) (*admin.ListUsersResponse, error) {
 	return c.Admin.ListUsers(ctx, &admin.ListUsersRequest{
 		Namespace: namespace,
 		PageSize:  pageSize,
-		PageToken: pageToken,
+		Page:      page,
 	})
 }
 
@@ -107,7 +111,7 @@ func (c *Client) GetUser(ctx context.Context, id string) (*admin.User, error) {
 	return c.Admin.GetUser(ctx, &admin.GetUserRequest{Id: id})
 }
 
-func (c *Client) UpdateUserStatus(ctx context.Context, id, status string) error {
+func (c *Client) UpdateUserStatus(ctx context.Context, id string, status admin.UserStatus) error {
 	_, err := c.Admin.UpdateUserStatus(ctx, &admin.UpdateUserStatusRequest{
 		Id:     id,
 		Status: status,
@@ -155,11 +159,11 @@ func (c *Client) RevokePermissions(ctx context.Context, id string, permissions [
 	return err
 }
 
-func (c *Client) ListAuditLogs(ctx context.Context, namespace string, pageSize, pageToken int32) (*admin.ListAuditLogsResponse, error) {
+func (c *Client) ListAuditLogs(ctx context.Context, namespace string, pageSize, page int32) (*admin.ListAuditLogsResponse, error) {
 	return c.Admin.ListAuditLogs(ctx, &admin.ListAuditLogsRequest{
 		Namespace: namespace,
 		PageSize:  pageSize,
-		PageToken: pageToken,
+		Page:      page,
 	})
 }
 
@@ -171,8 +175,12 @@ func (c *Client) CreateRole(ctx context.Context, name, namespace string, permiss
 	})
 }
 
-func (c *Client) ListRoles(ctx context.Context, namespace string) (*admin.ListRolesResponse, error) {
-	return c.Admin.ListRoles(ctx, &admin.ListRolesRequest{Namespace: namespace})
+func (c *Client) ListRoles(ctx context.Context, namespace string, pageSize, page int32) (*admin.ListRolesResponse, error) {
+	return c.Admin.ListRoles(ctx, &admin.ListRolesRequest{
+		Namespace: namespace,
+		PageSize:  pageSize,
+		Page:      page,
+	})
 }
 
 func (c *Client) DeleteRole(ctx context.Context, id string) error {
@@ -180,14 +188,97 @@ func (c *Client) DeleteRole(ctx context.Context, id string) error {
 	return err
 }
 
-func (c *Client) CreateServiceAccount(ctx context.Context, name, namespace string, scopes []string) (*admin.ServiceAccount, error) {
-	return c.Admin.CreateServiceAccount(ctx, &admin.CreateServiceAccountRequest{
-		Name:      name,
-		Namespace: namespace,
-		Scopes:    scopes,
+func (c *Client) RegisterOIDCClient(ctx context.Context, name, namespace string, redirectUris, allowedScopes []string, skipConsent bool) (*admin.OIDCClient, error) {
+	return c.OIDCClient.RegisterClient(ctx, &admin.RegisterClientRequest{
+		Name:          name,
+		Namespace:     namespace,
+		RedirectUris:  redirectUris,
+		AllowedScopes: allowedScopes,
+		SkipConsent:   skipConsent,
 	})
 }
 
-func (c *Client) ListServiceAccounts(ctx context.Context, namespace string) (*admin.ListServiceAccountsResponse, error) {
-	return c.Admin.ListServiceAccounts(ctx, &admin.ListServiceAccountsRequest{Namespace: namespace})
+func (c *Client) GetOIDCClient(ctx context.Context, clientID string) (*admin.OIDCClient, error) {
+	return c.OIDCClient.GetClient(ctx, &admin.GetClientRequest{ClientId: clientID})
+}
+
+func (c *Client) UpdateOIDCClient(ctx context.Context, req *admin.UpdateClientRequest) (*admin.OIDCClient, error) {
+	return c.OIDCClient.UpdateClient(ctx, req)
+}
+
+func (c *Client) DeleteOIDCClient(ctx context.Context, clientID string) error {
+	_, err := c.OIDCClient.DeleteClient(ctx, &admin.DeleteClientRequest{ClientId: clientID})
+	return err
+}
+
+func (c *Client) ListOIDCClients(ctx context.Context, namespace string, pageSize, page int32) (*admin.ListClientsResponse, error) {
+	return c.OIDCClient.ListClients(ctx, &admin.ListClientsRequest{
+		Namespace: namespace,
+		PageSize:  pageSize,
+		Page:      page,
+	})
+}
+
+func (c *Client) RotateOIDCClientSecret(ctx context.Context, clientID string) (string, error) {
+	resp, err := c.OIDCClient.RotateClientSecret(ctx, &admin.RotateClientSecretRequest{ClientId: clientID})
+	if err != nil {
+		return "", err
+	}
+	return resp.ClientSecret, nil
+}
+
+// OIDC Methods
+
+func (c *Client) GetUserInfo(ctx context.Context) (*auth.UserInfo, error) {
+	return c.OIDC.GetUserInfo(ctx, &auth.GetUserInfoRequest{})
+}
+
+// ClientCredentialsProvider implements client.TokenProvider for M2M communication
+type ClientCredentialsProvider struct {
+	oidcClient   auth.OIDCServiceClient
+	clientID     string
+	clientSecret string
+
+	mu        sync.RWMutex
+	token     string
+	expiresAt time.Time
+}
+
+func NewClientCredentialsProvider(oidcClient auth.OIDCServiceClient, clientID, clientSecret string) *ClientCredentialsProvider {
+	return &ClientCredentialsProvider{
+		oidcClient:   oidcClient,
+		clientID:     clientID,
+		clientSecret: clientSecret,
+	}
+}
+
+func (p *ClientCredentialsProvider) GetToken(ctx context.Context) (string, error) {
+	p.mu.RLock()
+	if p.token != "" && time.Now().UTC().Before(p.expiresAt.Add(-1*time.Minute)) {
+		defer p.mu.RUnlock()
+		return p.token, nil
+	}
+	p.mu.RUnlock()
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// Double check
+	if p.token != "" && time.Now().UTC().Before(p.expiresAt.Add(-1*time.Minute)) {
+		return p.token, nil
+	}
+
+	resp, err := p.oidcClient.Token(ctx, &auth.TokenRequest{
+		GrantType:    "client_credentials",
+		ClientId:     p.clientID,
+		ClientSecret: p.clientSecret,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	p.token = resp.AccessToken
+	p.expiresAt = time.Now().UTC().Add(time.Duration(resp.ExpiresIn) * time.Second)
+
+	return p.token, nil
 }

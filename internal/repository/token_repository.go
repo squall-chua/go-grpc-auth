@@ -7,6 +7,7 @@ import (
 
 	"github.com/squall-chua/gmqb"
 	"github.com/squall-chua/go-grpc-auth/internal/domain"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
@@ -33,7 +34,10 @@ func NewTokenRepository(db *mongo.Database) TokenRepository {
 }
 
 func (r *mongoTokenRepository) Create(ctx context.Context, token *domain.Token) error {
-	token.CreatedAt = time.Now()
+	if token.ID == bson.NilObjectID {
+		token.ID = bson.NewObjectID()
+	}
+	token.CreatedAt = time.Now().UTC()
 	_, err := r.collection.InsertOne(ctx, token)
 	return err
 }
@@ -60,6 +64,6 @@ func (r *mongoTokenRepository) DeleteByUserID(ctx context.Context, userID string
 }
 
 func (r *mongoTokenRepository) DeleteExpired(ctx context.Context) error {
-	_, err := r.collection.DeleteMany(ctx, gmqb.Lt(r.f("ExpiresAt"), time.Now()))
+	_, err := r.collection.DeleteMany(ctx, gmqb.Lt(r.f("ExpiresAt"), time.Now().UTC()))
 	return err
 }

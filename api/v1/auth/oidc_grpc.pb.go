@@ -27,6 +27,8 @@ const (
 	OIDCService_GetConsentRequest_FullMethodName = "/auth.v1.OIDCService/GetConsentRequest"
 	OIDCService_AcceptConsent_FullMethodName     = "/auth.v1.OIDCService/AcceptConsent"
 	OIDCService_RejectConsent_FullMethodName     = "/auth.v1.OIDCService/RejectConsent"
+	OIDCService_Authorize_FullMethodName         = "/auth.v1.OIDCService/Authorize"
+	OIDCService_Token_FullMethodName             = "/auth.v1.OIDCService/Token"
 	OIDCService_Logout_FullMethodName            = "/auth.v1.OIDCService/Logout"
 )
 
@@ -43,6 +45,10 @@ type OIDCServiceClient interface {
 	GetConsentRequest(ctx context.Context, in *GetConsentRequestRequest, opts ...grpc.CallOption) (*ConsentDetails, error)
 	AcceptConsent(ctx context.Context, in *AcceptConsentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	RejectConsent(ctx context.Context, in *RejectConsentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Authorization
+	Authorize(ctx context.Context, in *AuthorizeRequest, opts ...grpc.CallOption) (*AuthorizeResponse, error)
+	// Token exchange
+	Token(ctx context.Context, in *TokenRequest, opts ...grpc.CallOption) (*TokenResponse, error)
 	// Logout
 	Logout(ctx context.Context, in *OIDCLogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error)
 }
@@ -109,6 +115,24 @@ func (c *oIDCServiceClient) RejectConsent(ctx context.Context, in *RejectConsent
 	return out, nil
 }
 
+func (c *oIDCServiceClient) Authorize(ctx context.Context, in *AuthorizeRequest, opts ...grpc.CallOption) (*AuthorizeResponse, error) {
+	out := new(AuthorizeResponse)
+	err := c.cc.Invoke(ctx, OIDCService_Authorize_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *oIDCServiceClient) Token(ctx context.Context, in *TokenRequest, opts ...grpc.CallOption) (*TokenResponse, error) {
+	out := new(TokenResponse)
+	err := c.cc.Invoke(ctx, OIDCService_Token_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *oIDCServiceClient) Logout(ctx context.Context, in *OIDCLogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error) {
 	out := new(LogoutResponse)
 	err := c.cc.Invoke(ctx, OIDCService_Logout_FullMethodName, in, out, opts...)
@@ -131,6 +155,10 @@ type OIDCServiceServer interface {
 	GetConsentRequest(context.Context, *GetConsentRequestRequest) (*ConsentDetails, error)
 	AcceptConsent(context.Context, *AcceptConsentRequest) (*emptypb.Empty, error)
 	RejectConsent(context.Context, *RejectConsentRequest) (*emptypb.Empty, error)
+	// Authorization
+	Authorize(context.Context, *AuthorizeRequest) (*AuthorizeResponse, error)
+	// Token exchange
+	Token(context.Context, *TokenRequest) (*TokenResponse, error)
 	// Logout
 	Logout(context.Context, *OIDCLogoutRequest) (*LogoutResponse, error)
 }
@@ -156,6 +184,12 @@ func (UnimplementedOIDCServiceServer) AcceptConsent(context.Context, *AcceptCons
 }
 func (UnimplementedOIDCServiceServer) RejectConsent(context.Context, *RejectConsentRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RejectConsent not implemented")
+}
+func (UnimplementedOIDCServiceServer) Authorize(context.Context, *AuthorizeRequest) (*AuthorizeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Authorize not implemented")
+}
+func (UnimplementedOIDCServiceServer) Token(context.Context, *TokenRequest) (*TokenResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Token not implemented")
 }
 func (UnimplementedOIDCServiceServer) Logout(context.Context, *OIDCLogoutRequest) (*LogoutResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Logout not implemented")
@@ -280,6 +314,42 @@ func _OIDCService_RejectConsent_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _OIDCService_Authorize_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuthorizeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OIDCServiceServer).Authorize(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OIDCService_Authorize_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OIDCServiceServer).Authorize(ctx, req.(*AuthorizeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OIDCService_Token_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OIDCServiceServer).Token(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OIDCService_Token_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OIDCServiceServer).Token(ctx, req.(*TokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _OIDCService_Logout_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(OIDCLogoutRequest)
 	if err := dec(in); err != nil {
@@ -328,6 +398,14 @@ var OIDCService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RejectConsent",
 			Handler:    _OIDCService_RejectConsent_Handler,
+		},
+		{
+			MethodName: "Authorize",
+			Handler:    _OIDCService_Authorize_Handler,
+		},
+		{
+			MethodName: "Token",
+			Handler:    _OIDCService_Token_Handler,
 		},
 		{
 			MethodName: "Logout",

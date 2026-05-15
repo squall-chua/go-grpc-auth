@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/soheilhy/cmux"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -38,18 +41,42 @@ func (s *Server) Start(ctx context.Context) error {
 	// Match HTTP
 	httpLis := m.Match(cmux.Any())
 
+	// Handle graceful shutdown in a separate goroutine
 	go func() {
-		if err := s.grpcServer.Serve(grpcLis); err != nil && err != cmux.ErrListenerClosed {
-			fmt.Printf("gRPC server error: %v\n", err)
+		<-ctx.Done()
+		zap.L().Info("Gracefully shutting down servers...")
+
+		// Shutdown HTTP server with timeout
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		
+		if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
+			zap.L().Error("HTTP server shutdown error", zap.Error(err))
+		}
+
+		// GracefulStop gRPC server
+		s.grpcServer.GracefulStop()
+
+		// Close the main listener to stop cmux
+		lis.Close()
+	}()
+
+	go func() {
+		if err := s.grpcServer.Serve(grpcLis); err != nil && err != cmux.ErrListenerClosed && err != net.ErrClosed {
+			zap.L().Error("gRPC server error", zap.Error(err))
 		}
 	}()
 
 	go func() {
-		if err := s.httpServer.Serve(httpLis); err != nil && err != http.ErrServerClosed && err != cmux.ErrListenerClosed {
-			fmt.Printf("HTTP server error: %v\n", err)
+		if err := s.httpServer.Serve(httpLis); err != nil && err != http.ErrServerClosed && err != cmux.ErrListenerClosed && err != net.ErrClosed {
+			zap.L().Error("HTTP server error", zap.Error(err))
 		}
 	}()
 
-	fmt.Printf("Multiplexed server starting on port %s\n", s.port)
-	return m.Serve()
+	zap.L().Info("Multiplexed server starting", zap.String("port", s.port))
+	err = m.Serve()
+	if err != nil && (err == cmux.ErrListenerClosed || err == net.ErrClosed || strings.Contains(err.Error(), "use of closed network connection")) {
+		return nil
+	}
+	return err
 }

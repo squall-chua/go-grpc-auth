@@ -47,8 +47,8 @@ func (s *mfaService) InitiateTOTP(ctx context.Context, userID string, issuer str
 		Method:    domain.MFAMethodTOTP,
 		Secret:    key.Secret(),
 		Confirmed: false,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
 	}
 
 	if err := s.repo.UpsertSecret(ctx, secret); err != nil {
@@ -67,7 +67,7 @@ func (s *mfaService) VerifyTOTP(ctx context.Context, userID string, code string)
 	valid := totp.Validate(code, secret.Secret)
 	if valid && !secret.Confirmed {
 		secret.Confirmed = true
-		secret.UpdatedAt = time.Now()
+		secret.UpdatedAt = time.Now().UTC()
 		if err := s.repo.UpsertSecret(ctx, secret); err != nil {
 			return false, err
 		}
@@ -105,7 +105,7 @@ func (s *mfaService) CreateMFAToken(ctx context.Context, userID string, namespac
 		UserID:    userID,
 		Namespace: namespace,
 		Method:    method,
-		ExpiresAt: time.Now().Add(5 * time.Minute),
+		ExpiresAt: time.Now().UTC().Add(5 * time.Minute),
 	}
 
 	if err := s.repo.CreateToken(ctx, token); err != nil {
@@ -121,7 +121,7 @@ func (s *mfaService) VerifyMFAToken(ctx context.Context, tokenStr string) (*doma
 		return nil, err
 	}
 
-	if time.Now().After(token.ExpiresAt) {
+	if time.Now().UTC().After(token.ExpiresAt) {
 		s.repo.DeleteToken(ctx, tokenStr)
 		return nil, fmt.Errorf("MFA token expired")
 	}

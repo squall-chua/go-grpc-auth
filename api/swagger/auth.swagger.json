@@ -1,9 +1,8 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "Admin Service API",
-    "description": "API for managing users and roles with gRPC and REST gateway.",
-    "version": "1.0"
+    "title": "api/proto/options/v1/auth_rule.proto",
+    "version": "version not set"
   },
   "tags": [
     {
@@ -74,6 +73,91 @@
         ]
       }
     },
+    "/oauth2/authorize": {
+      "get": {
+        "summary": "Authorization",
+        "operationId": "OIDCService_Authorize",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1AuthorizeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "responseType",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "clientId",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "redirectUri",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "nonce",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "codeChallenge",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "codeChallengeMethod",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "prompt",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "namespace",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "OIDCService"
+        ]
+      }
+    },
     "/oauth2/logout": {
       "get": {
         "summary": "Logout",
@@ -104,6 +188,39 @@
             "in": "query",
             "required": false,
             "type": "string"
+          }
+        ],
+        "tags": [
+          "OIDCService"
+        ]
+      }
+    },
+    "/oauth2/token": {
+      "post": {
+        "summary": "Token exchange",
+        "operationId": "OIDCService_Token",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1TokenResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1TokenRequest"
+            }
           }
         ],
         "tags": [
@@ -167,7 +284,7 @@
             "format": "int32"
           },
           {
-            "name": "pageToken",
+            "name": "page",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -205,10 +322,11 @@
             "format": "int32"
           },
           {
-            "name": "pageToken",
+            "name": "page",
             "in": "query",
             "required": false,
-            "type": "string"
+            "type": "integer",
+            "format": "int32"
           }
         ],
         "tags": [
@@ -367,6 +485,20 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
           }
         ],
         "tags": [
@@ -499,6 +631,150 @@
         ]
       }
     },
+    "/v1/admin/oidc/clients/{clientId}/rotate-secret": {
+      "post": {
+        "operationId": "OIDCClientService_RotateClientSecret",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RotateClientSecretResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/OIDCClientServiceRotateClientSecretBody"
+            }
+          }
+        ],
+        "tags": [
+          "OIDCClientService"
+        ]
+      }
+    },
+    "/v1/admin/permissions": {
+      "get": {
+        "operationId": "AdminService_ListPermissions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListPermissionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "AdminService"
+        ]
+      },
+      "post": {
+        "summary": "Permission Management",
+        "operationId": "AdminService_CreatePermission",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1Permission"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreatePermissionRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminService"
+        ]
+      }
+    },
+    "/v1/admin/permissions/{id}": {
+      "delete": {
+        "operationId": "AdminService_DeletePermission",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AdminService"
+        ]
+      }
+    },
     "/v1/admin/roles": {
       "get": {
         "operationId": "AdminService_ListRoles",
@@ -522,6 +798,20 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
           }
         ],
         "tags": [
@@ -591,67 +881,6 @@
         ]
       }
     },
-    "/v1/admin/service-accounts": {
-      "get": {
-        "summary": "Service Accounts",
-        "operationId": "AdminService_ListServiceAccounts",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/v1ListServiceAccountsResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "namespace",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "tags": [
-          "AdminService"
-        ]
-      },
-      "post": {
-        "operationId": "AdminService_CreateServiceAccount",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/v1ServiceAccount"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/v1CreateServiceAccountRequest"
-            }
-          }
-        ],
-        "tags": [
-          "AdminService"
-        ]
-      }
-    },
     "/v1/admin/users": {
       "get": {
         "summary": "User Management",
@@ -679,10 +908,11 @@
             "format": "int32"
           },
           {
-            "name": "pageToken",
+            "name": "page",
             "in": "query",
             "required": false,
-            "type": "string"
+            "type": "integer",
+            "format": "int32"
           },
           {
             "name": "namespace",
@@ -1018,16 +1248,6 @@
             }
           }
         },
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/v1LogoutRequest"
-            }
-          }
-        ],
         "tags": [
           "AuthService"
         ]
@@ -1461,7 +1681,7 @@
       "type": "object",
       "properties": {
         "status": {
-          "type": "string"
+          "$ref": "#/definitions/v1UserStatus"
         }
       }
     },
@@ -1472,6 +1692,9 @@
           "$ref": "#/definitions/v1NamespaceConfig"
         }
       }
+    },
+    "OIDCClientServiceRotateClientSecretBody": {
+      "type": "object"
     },
     "OIDCClientServiceUpdateClientBody": {
       "type": "object",
@@ -1576,6 +1799,14 @@
         }
       }
     },
+    "v1AuthorizeResponse": {
+      "type": "object",
+      "properties": {
+        "redirectUri": {
+          "type": "string"
+        }
+      }
+    },
     "v1ChangePasswordRequest": {
       "type": "object",
       "properties": {
@@ -1612,6 +1843,20 @@
         }
       }
     },
+    "v1CreatePermissionRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
     "v1CreateRoleRequest": {
       "type": "object",
       "properties": {
@@ -1622,23 +1867,6 @@
           "type": "string"
         },
         "permissions": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    "v1CreateServiceAccountRequest": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "namespace": {
-          "type": "string"
-        },
-        "scopes": {
           "type": "array",
           "items": {
             "type": "string"
@@ -1679,13 +1907,13 @@
             "$ref": "#/definitions/v1AuditLog"
           }
         },
-        "nextPageToken": {
+        "totalPages": {
           "type": "integer",
           "format": "int32"
         },
         "totalCount": {
-          "type": "string",
-          "format": "int64"
+          "type": "integer",
+          "format": "int32"
         }
       }
     },
@@ -1698,6 +1926,14 @@
             "type": "object",
             "$ref": "#/definitions/v1OIDCClient"
           }
+        },
+        "totalPages": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "totalCount": {
+          "type": "integer",
+          "format": "int32"
         }
       }
     },
@@ -1711,8 +1947,33 @@
             "$ref": "#/definitions/v1Namespace"
           }
         },
-        "nextPageToken": {
-          "type": "string"
+        "totalPages": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "totalCount": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "v1ListPermissionsResponse": {
+      "type": "object",
+      "properties": {
+        "permissions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Permission"
+          }
+        },
+        "totalPages": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "totalCount": {
+          "type": "integer",
+          "format": "int32"
         }
       }
     },
@@ -1725,18 +1986,14 @@
             "type": "object",
             "$ref": "#/definitions/v1Role"
           }
-        }
-      }
-    },
-    "v1ListServiceAccountsResponse": {
-      "type": "object",
-      "properties": {
-        "serviceAccounts": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "$ref": "#/definitions/v1ServiceAccount"
-          }
+        },
+        "totalPages": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "totalCount": {
+          "type": "integer",
+          "format": "int32"
         }
       }
     },
@@ -1750,8 +2007,9 @@
             "$ref": "#/definitions/v1User"
           }
         },
-        "nextPageToken": {
-          "type": "string"
+        "totalPages": {
+          "type": "integer",
+          "format": "int32"
         },
         "totalCount": {
           "type": "integer",
@@ -1770,17 +2028,6 @@
           "type": "string"
         },
         "namespace": {
-          "type": "string"
-        }
-      }
-    },
-    "v1LogoutRequest": {
-      "type": "object",
-      "properties": {
-        "accessToken": {
-          "type": "string"
-        },
-        "refreshToken": {
           "type": "string"
         }
       }
@@ -1874,6 +2121,23 @@
         },
         "requireSpecial": {
           "type": "boolean"
+        }
+      }
+    },
+    "v1Permission": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
         }
       }
     },
@@ -1983,26 +2247,11 @@
         }
       }
     },
-    "v1ServiceAccount": {
+    "v1RotateClientSecretResponse": {
       "type": "object",
       "properties": {
-        "clientId": {
-          "type": "string"
-        },
         "clientSecret": {
           "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "namespace": {
-          "type": "string"
-        },
-        "scopes": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
         }
       }
     },
@@ -2041,6 +2290,56 @@
         }
       }
     },
+    "v1TokenRequest": {
+      "type": "object",
+      "properties": {
+        "grantType": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "redirectUri": {
+          "type": "string"
+        },
+        "clientId": {
+          "type": "string"
+        },
+        "clientSecret": {
+          "type": "string"
+        },
+        "refreshToken": {
+          "type": "string"
+        },
+        "codeVerifier": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        }
+      }
+    },
+    "v1TokenResponse": {
+      "type": "object",
+      "properties": {
+        "accessToken": {
+          "type": "string"
+        },
+        "tokenType": {
+          "type": "string"
+        },
+        "expiresIn": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "refreshToken": {
+          "type": "string"
+        },
+        "idToken": {
+          "type": "string"
+        }
+      }
+    },
     "v1User": {
       "type": "object",
       "properties": {
@@ -2054,8 +2353,7 @@
           "type": "string"
         },
         "status": {
-          "type": "string",
-          "title": "active, inactive, banned"
+          "$ref": "#/definitions/v1UserStatus"
         },
         "roles": {
           "type": "array",
@@ -2107,6 +2405,16 @@
           }
         }
       }
+    },
+    "v1UserStatus": {
+      "type": "string",
+      "enum": [
+        "USER_STATUS_UNSPECIFIED",
+        "USER_STATUS_ACTIVE",
+        "USER_STATUS_INACTIVE",
+        "USER_STATUS_BANNED"
+      ],
+      "default": "USER_STATUS_UNSPECIFIED"
     },
     "v1VerifyMFARequest": {
       "type": "object",

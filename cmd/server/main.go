@@ -2,12 +2,9 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/squall-chua/go-grpc-auth/internal/config"
@@ -20,20 +17,31 @@ import (
 	authservice "github.com/squall-chua/go-grpc-auth/internal/service/auth"
 	"github.com/squall-chua/go-grpc-auth/internal/service/oidc"
 	"github.com/squall-chua/go-grpc-auth/internal/service/ratelimit"
-	"github.com/squall-chua/go-grpc-auth/internal/service/webhook"
 	tokenservice "github.com/squall-chua/go-grpc-auth/internal/service/token"
+	"github.com/squall-chua/go-grpc-auth/internal/service/webhook"
+	"go.uber.org/zap"
 )
 
 func main() {
+	// Initialize Zap Logger
+	logger, _ := zap.NewProduction()
+	if os.Getenv("ENV") == "development" {
+		logger, _ = zap.NewDevelopment()
+	}
+	defer logger.Sync()
+	undo := zap.ReplaceGlobals(logger)
+	defer undo()
+
 	cfg := config.Load()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// Setup context with signal handling
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
 	// Setup MongoDB
 	db, err := repository.NewMongoDB(ctx, cfg.MongoURI)
 	if err != nil {
-		log.Fatalf("Failed to connect to MongoDB: %v", err)
+		logger.Fatal("Failed to connect to MongoDB", zap.Error(err))
 	}
 	defer db.Close(ctx)
 
@@ -46,20 +54,23 @@ func main() {
 	clientRepo := repository.NewClientRepository(db.DB)
 	mfaRepo := repository.NewMFARepository(db.DB)
 	auditRepo := repository.NewAuditRepository(db.DB)
+	authCodeRepo := repository.NewAuthCodeRepository(db.DB)
+	sessionRepo := repository.NewSessionRepository(db.DB)
+	consentRepo := repository.NewConsentRepository(db.DB)
 
 	// RSA Keys
 	privateKey, err := keys.LoadRSAPrivateKey(cfg.RSAPrivateKeyPath)
 	if err != nil {
-		log.Printf("Warning: RS256 private key not loaded: %v", err)
+		logger.Warn("RS256 private key not loaded", zap.Error(err))
 	}
 	publicKey, err := keys.LoadRSAPublicKey(cfg.RSAPublicKeyPath)
 	if err != nil {
-		log.Printf("Warning: RS256 public key not loaded: %v", err)
+		logger.Warn("RS256 public key not loaded", zap.Error(err))
 	}
 	kid := keys.GenerateKID(publicKey)
 
 	// Services
-	tokenSvc := tokenservice.NewTokenService(tokenRepo, userRepo, privateKey, kid, cfg.Issuer)
+	tokenSvc := tokenservice.NewTokenService(tokenRepo, userRepo, clientRepo, privateKey, kid, cfg.Issuer, cfg.AccessTokenDuration, cfg.RefreshTokenDuration)
 	mfaSvc := authservice.NewMFAService(mfaRepo)
 	auditSvc := audit.NewAuditService(auditRepo)
 
@@ -68,11 +79,11 @@ func main() {
 		rdb := redis.NewClient(&redis.Options{
 			Addr: cfg.RedisURI,
 		})
-		rateLimiter = ratelimit.NewRedisRateLimiter(rdb, 5, 1*time.Minute)
-		log.Println("Rate limiting: Redis enabled")
+		rateLimiter = ratelimit.NewRedisRateLimiter(rdb, cfg.RateLimitRequests, cfg.RateLimitWindow)
+		logger.Info("Rate limiting: Redis enabled", zap.String("addr", cfg.RedisURI))
 	} else {
-		rateLimiter = ratelimit.NewMemoryRateLimiter(5, 1*time.Minute)
-		log.Println("Rate limiting: Memory fallback")
+		rateLimiter = ratelimit.NewMemoryRateLimiter(cfg.RateLimitRequests, cfg.RateLimitWindow)
+		logger.Info("Rate limiting: Memory fallback")
 	}
 
 	webhookSvc := webhook.NewWebhookService()
@@ -80,7 +91,7 @@ func main() {
 	oidcClientSvc := adminservice.NewOIDCClientService(clientRepo)
 	adminSvc := adminservice.NewAdminService(userRepo, roleRepo, permRepo, oidcClientSvc, auditSvc)
 	nsSvc := adminservice.NewNamespaceService(nsRepo)
-	oidcSvc := oidc.NewOIDCService(cfg.Issuer, publicKey, kid, userRepo)
+	oidcSvc := oidc.NewOIDCService(cfg.Issuer, publicKey, kid, userRepo, clientRepo, authCodeRepo, tokenSvc, sessionRepo, consentRepo)
 
 	// Social Providers
 	var socialProviders []domain.SocialProviderInterface
@@ -104,21 +115,15 @@ func main() {
 
 	gatewaySrv, err := server.NewGatewayServer(ctx, cfg.Port)
 	if err != nil {
-		log.Fatalf("Failed to create gateway server: %v", err)
+		logger.Fatal("Failed to create gateway server", zap.Error(err))
 	}
 
 	srv := server.NewServer(cfg.Port, grpcSrv, gatewaySrv)
 
-	// Graceful shutdown
-	go func() {
-		sigCh := make(chan os.Signal, 1)
-		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-		<-sigCh
-		fmt.Println("\nShutting down server...")
-		cancel()
-	}()
-
+	logger.Info("Starting multiplexed server", zap.String("port", cfg.Port))
 	if err := srv.Start(ctx); err != nil {
-		log.Fatalf("Server stopped with error: %v", err)
+		logger.Fatal("Server stopped with error", zap.Error(err))
 	}
+	
+	logger.Info("Server exited gracefully")
 }

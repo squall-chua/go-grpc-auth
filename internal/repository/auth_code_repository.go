@@ -6,6 +6,7 @@ import (
 
 	"github.com/squall-chua/gmqb"
 	"github.com/squall-chua/go-grpc-auth/internal/domain"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
@@ -28,19 +29,19 @@ func NewAuthCodeRepository(db *mongo.Database) AuthCodeRepository {
 }
 
 func (r *authCodeRepository) Save(ctx context.Context, code *domain.AuthCode) error {
+	if code.ID == bson.NilObjectID {
+		code.ID = bson.NewObjectID()
+	}
 	_, err := r.collection.InsertOne(ctx, code)
 	return err
 }
 
 func (r *authCodeRepository) Get(ctx context.Context, code string) (*domain.AuthCode, error) {
-	ac, err := r.collection.FindOne(ctx, gmqb.Eq(r.f("Code"), code))
-	if err != nil {
-		return nil, err
-	}
-	if ac.ExpiresAt.Before(time.Now()) {
-		return nil, mongo.ErrNoDocuments
-	}
-	return ac, nil
+	filter := gmqb.And(
+		gmqb.Eq(r.f("Code"), code),
+		gmqb.Gt(r.f("ExpiresAt"), time.Now().UTC()),
+	)
+	return r.collection.FindOne(ctx, filter)
 }
 
 func (r *authCodeRepository) Delete(ctx context.Context, code string) error {

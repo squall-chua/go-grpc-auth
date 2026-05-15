@@ -42,7 +42,7 @@ func (s *webhookService) Notify(ctx context.Context, namespace string, event dom
 			"event":     event,
 			"namespace": namespace,
 			"payload":   payload,
-			"timestamp": time.Now(),
+			"timestamp": time.Now().UTC(),
 		})
 		
 		req, _ := http.NewRequest("POST", URL, bytes.NewBuffer(data))

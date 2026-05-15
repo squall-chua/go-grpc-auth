@@ -55,6 +55,16 @@ service OIDCClientService {
       roles: ["admin", "superadmin"]
     };
   }
+
+  rpc RotateClientSecret(RotateClientSecretRequest) returns (RotateClientSecretResponse) {
+    option (google.api.http) = {
+      post: "/v1/admin/oidc/clients/{client_id}/rotate-secret"
+      body: "*"
+    };
+    option (options.v1.rule) = {
+      roles: ["admin", "superadmin"]
+    };
+  }
 }
 
 message OIDCClient {
@@ -93,8 +103,20 @@ message DeleteClientRequest {
 
 message ListClientsRequest {
   string namespace = 1;
+  int32 page_size = 2;
+  int32 page = 3;
 }
 
 message ListClientsResponse {
   repeated OIDCClient clients = 1;
+  int32 total_pages = 2;
+  int32 total_count = 3;
+}
+
+message RotateClientSecretRequest {
+  string client_id = 1;
+}
+
+message RotateClientSecretResponse {
+  string client_secret = 1;
 }

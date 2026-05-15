@@ -7,6 +7,7 @@ import (
 
 	"github.com/squall-chua/gmqb"
 	"github.com/squall-chua/go-grpc-auth/internal/domain"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
@@ -35,14 +36,22 @@ func NewUserRepository(db *mongo.Database) UserRepository {
 }
 
 func (r *mongoUserRepository) Create(ctx context.Context, user *domain.User) error {
-	user.CreatedAt = time.Now()
-	user.UpdatedAt = time.Now()
+	if user.ID == bson.NilObjectID {
+		user.ID = bson.NewObjectID()
+	}
+	user.CreatedAt = time.Now().UTC()
+	user.UpdatedAt = time.Now().UTC()
 	_, err := r.collection.InsertOne(ctx, user)
 	return err
 }
 
 func (r *mongoUserRepository) GetByID(ctx context.Context, id string) (*domain.User, error) {
-	user, err := r.collection.FindOne(ctx, gmqb.Eq(r.f("ID"), id))
+	objID, err := bson.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := r.collection.FindOne(ctx, gmqb.Eq(r.f("ID"), objID))
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, ErrUserNotFound
@@ -81,35 +90,70 @@ func (r *mongoUserRepository) GetByUsername(ctx context.Context, namespace, user
 }
 
 func (r *mongoUserRepository) Update(ctx context.Context, user *domain.User) error {
-	user.UpdatedAt = time.Now()
-	_, err := r.collection.ReplaceOne(ctx, gmqb.Eq(r.f("ID"), user.ID), user)
+	user.UpdatedAt = time.Now().UTC()
+	_, err := r.collection.UpdateOne(ctx, gmqb.Eq(r.f("ID"), user.ID),
+		gmqb.NewUpdate().
+			Set(r.f("Email"), user.Email).
+			Set(r.f("Username"), user.Username).
+			Set(r.f("PasswordHash"), user.PasswordHash).
+			Set(r.f("Status"), user.Status).
+			Set(r.f("Roles"), user.Roles).
+			Set(r.f("Permissions"), user.Permissions).
+			Set(r.f("PasswordHistory"), user.PasswordHistory).
+			Set(r.f("SocialIdentities"), user.SocialIdentities).
+			Set(r.f("UpdatedAt"), user.UpdatedAt),
+	)
 	return err
 }
 
 func (r *mongoUserRepository) Delete(ctx context.Context, id string) error {
-	_, err := r.collection.DeleteOne(ctx, gmqb.Eq(r.f("ID"), id))
+	objID, err := bson.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	}
+	_, err = r.collection.DeleteOne(ctx, gmqb.Eq(r.f("ID"), objID))
 	return err
 }
 
 func (r *mongoUserRepository) List(ctx context.Context, namespace string, offset, limit int) ([]*domain.User, int64, error) {
 	filter := gmqb.Eq(r.f("Namespace"), namespace)
-	count, err := r.collection.CountDocuments(ctx, filter)
+
+	pipeline := gmqb.NewPipeline().
+		Match(filter).
+		Facet(map[string]gmqb.Pipeline{
+			"data": gmqb.NewPipeline().
+				Skip(int64(offset)).
+				Limit(int64(limit)),
+			"metadata": gmqb.NewPipeline().
+				Count("total"),
+		})
+
+	type resultDoc struct {
+		Data     []domain.User `bson:"data"`
+		Metadata []struct {
+			Total int64 `bson:"total"`
+		} `bson:"metadata"`
+	}
+
+	results, err := gmqb.Aggregate[resultDoc](r.collection, ctx, pipeline)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	users, err := r.collection.Find(ctx, filter,
-		gmqb.WithSkip(int64(offset)),
-		gmqb.WithLimit(int64(limit)),
-	)
-	if err != nil {
-		return nil, 0, err
+	if len(results) == 0 {
+		return nil, 0, nil
 	}
 
-	result := make([]*domain.User, len(users))
-	for i := range users {
-		result[i] = &users[i]
+	res := results[0]
+	total := int64(0)
+	if len(res.Metadata) > 0 {
+		total = res.Metadata[0].Total
 	}
 
-	return result, count, nil
+	users := make([]*domain.User, len(res.Data))
+	for i := range res.Data {
+		users[i] = &res.Data[i]
+	}
+
+	return users, total, nil
 }

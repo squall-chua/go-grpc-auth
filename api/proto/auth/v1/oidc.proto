@@ -22,11 +22,17 @@ service OIDCService {
     option (google.api.http) = {
       get: "/.well-known/openid-configuration"
     };
+    option (options.v1.rule) = {
+      public: true
+    };
   }
 
   rpc GetJWKS(google.protobuf.Empty) returns (google.protobuf.Struct) {
     option (google.api.http) = {
       get: "/.well-known/jwks.json"
+    };
+    option (options.v1.rule) = {
+      public: true
     };
   }
 
@@ -51,12 +57,69 @@ service OIDCService {
     };
   }
 
+  // Authorization
+  rpc Authorize(AuthorizeRequest) returns (AuthorizeResponse) {
+    option (google.api.http) = {
+      get: "/oauth2/authorize"
+    };
+    option (options.v1.rule) = {
+      public: true
+    };
+  }
+
+  // Token exchange
+  rpc Token(TokenRequest) returns (TokenResponse) {
+    option (google.api.http) = {
+      post: "/oauth2/token"
+      body: "*"
+    };
+    option (options.v1.rule) = {
+      public: true
+    };
+  }
+
   // Logout
   rpc Logout(OIDCLogoutRequest) returns (LogoutResponse) {
     option (google.api.http) = {
       get: "/oauth2/logout"
     };
   }
+}
+
+message AuthorizeRequest {
+  string response_type = 1;
+  string client_id = 2;
+  string redirect_uri = 3;
+  string scope = 4;
+  string state = 5;
+  string nonce = 6;
+  string code_challenge = 7;
+  string code_challenge_method = 8;
+  string prompt = 9;
+  string namespace = 10;
+}
+
+message AuthorizeResponse {
+  string redirect_uri = 1;
+}
+
+message TokenRequest {
+  string grant_type = 1;
+  string code = 2;
+  string redirect_uri = 3;
+  string client_id = 4;
+  string client_secret = 5;
+  string refresh_token = 6;
+  string code_verifier = 7;
+  string namespace = 8;
+}
+
+message TokenResponse {
+  string access_token = 1;
+  string token_type = 2;
+  int32 expires_in = 3;
+  string refresh_token = 4;
+  string id_token = 5;
 }
 
 message GetUserInfoRequest {}

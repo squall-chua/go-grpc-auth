@@ -1,16 +1,21 @@
 package domain
 
-import "time"
+import (
+	"time"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+)
 
 type AuthCode struct {
-	Code                string
-	ClientID            string
-	UserID              string
-	Namespace           string
-	RedirectURI         string
-	Scopes              []string
-	CodeChallenge       string
-	CodeChallengeMethod string
-	Nonce               string
-	ExpiresAt           time.Time
+	ID                  bson.ObjectID `bson:"_id,omitempty"`
+	Code                string        `bson:"code"`
+	ClientID            string        `bson:"client_id"`
+	UserID              string        `bson:"user_id"`
+	Namespace           string        `bson:"namespace"`
+	RedirectURI         string        `bson:"redirect_uri"`
+	Scopes              []string      `bson:"scopes"`
+	CodeChallenge       string        `bson:"code_challenge"`
+	CodeChallengeMethod string        `bson:"code_challenge_method"`
+	Nonce               string        `bson:"nonce"`
+	ExpiresAt           time.Time     `bson:"expires_at"`
 }

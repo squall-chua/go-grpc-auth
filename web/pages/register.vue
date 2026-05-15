@@ -4,7 +4,7 @@
       <div class="text-center">
         <h2 class="text-3xl font-extrabold tracking-tight">Create Account</h2>
         <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          Join Antigravity and secure your digital identity
+          Join {{ config.public.name }} and secure your digital identity
         </p>
       </div>
 
@@ -40,6 +40,7 @@
 import { useAuthStore } from '~/stores/auth'
 import { useApi } from '~/composables/useApi'
 
+const config = useRuntimeConfig()
 const auth = useAuthStore()
 const api = useApi()
 const toast = useToast()

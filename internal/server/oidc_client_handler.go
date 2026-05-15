@@ -85,7 +85,16 @@ func (s *oidcClientGRPCServer) DeleteClient(ctx context.Context, req *admin.Dele
 }
 
 func (s *oidcClientGRPCServer) ListClients(ctx context.Context, req *admin.ListClientsRequest) (*admin.ListClientsResponse, error) {
-	clients, err := s.service.ListClients(ctx, req.Namespace)
+	page := int(req.Page)
+	if page <= 0 {
+		page = 1
+	}
+	pageSize := int(req.PageSize)
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+
+	clients, total, err := s.service.ListClients(ctx, req.Namespace, page, pageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -100,5 +109,20 @@ func (s *oidcClientGRPCServer) ListClients(ctx context.Context, req *admin.ListC
 			Namespace:     c.Namespace,
 		})
 	}
-	return &admin.ListClientsResponse{Clients: protoClients}, nil
+	totalPages := int32((total + int64(pageSize) - 1) / int64(pageSize))
+	return &admin.ListClientsResponse{
+		Clients:    protoClients,
+		TotalPages: totalPages,
+		TotalCount: int32(total),
+	}, nil
+}
+
+func (s *oidcClientGRPCServer) RotateClientSecret(ctx context.Context, req *admin.RotateClientSecretRequest) (*admin.RotateClientSecretResponse, error) {
+	secret, err := s.service.RotateSecret(ctx, req.ClientId)
+	if err != nil {
+		return nil, err
+	}
+	return &admin.RotateClientSecretResponse{
+		ClientSecret: secret,
+	}, nil
 }

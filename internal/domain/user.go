@@ -1,9 +1,13 @@
 package domain
 
-import "time"
+import (
+	"time"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+)
 
 type User struct {
-	ID               string           `bson:"id"`
+	ID               bson.ObjectID    `bson:"_id,omitempty"`
 	Email            string           `bson:"email"`
 	Username         string           `bson:"username"`
 	PasswordHash     string           `bson:"password_hash"`

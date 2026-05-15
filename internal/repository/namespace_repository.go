@@ -6,6 +6,7 @@ import (
 
 	"github.com/squall-chua/gmqb"
 	"github.com/squall-chua/go-grpc-auth/internal/domain"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
@@ -33,12 +34,20 @@ func NewNamespaceRepository(db *mongo.Database) NamespaceRepository {
 }
 
 func (r *mongoNamespaceRepository) Create(ctx context.Context, ns *domain.Namespace) error {
+	if ns.ID == bson.NilObjectID {
+		ns.ID = bson.NewObjectID()
+	}
 	_, err := r.collection.InsertOne(ctx, ns)
 	return err
 }
 
 func (r *mongoNamespaceRepository) GetByID(ctx context.Context, id string) (*domain.Namespace, error) {
-	ns, err := r.collection.FindOne(ctx, gmqb.Eq(r.f("ID"), id))
+	objID, err := bson.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, err
+	}
+
+	ns, err := r.collection.FindOne(ctx, gmqb.Eq(r.f("ID"), objID))
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, ErrNamespaceNotFound
@@ -60,32 +69,62 @@ func (r *mongoNamespaceRepository) GetByName(ctx context.Context, name string) (
 }
 
 func (r *mongoNamespaceRepository) List(ctx context.Context, offset, limit int) ([]*domain.Namespace, int64, error) {
-	count, err := r.collection.CountDocuments(ctx, gmqb.NewFilter())
+	filter := gmqb.NewFilter()
+
+	pipeline := gmqb.NewPipeline().
+		Match(filter).
+		Facet(map[string]gmqb.Pipeline{
+			"data": gmqb.NewPipeline().
+				Skip(int64(offset)).
+				Limit(int64(limit)),
+			"metadata": gmqb.NewPipeline().
+				Count("total"),
+		})
+
+	type resultDoc struct {
+		Data     []domain.Namespace `bson:"data"`
+		Metadata []struct {
+			Total int64 `bson:"total"`
+		} `bson:"metadata"`
+	}
+
+	results, err := gmqb.Aggregate[resultDoc](r.collection, ctx, pipeline)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	namespaces, err := r.collection.Find(ctx, gmqb.NewFilter(),
-		gmqb.WithSkip(int64(offset)),
-		gmqb.WithLimit(int64(limit)),
-	)
-	if err != nil {
-		return nil, 0, err
+	if len(results) == 0 {
+		return nil, 0, nil
 	}
 
-	result := make([]*domain.Namespace, len(namespaces))
-	for i := range namespaces {
-		result[i] = &namespaces[i]
+	res := results[0]
+	total := int64(0)
+	if len(res.Metadata) > 0 {
+		total = res.Metadata[0].Total
 	}
-	return result, count, nil
+
+	namespaces := make([]*domain.Namespace, len(res.Data))
+	for i := range res.Data {
+		namespaces[i] = &res.Data[i]
+	}
+
+	return namespaces, total, nil
 }
 
 func (r *mongoNamespaceRepository) Update(ctx context.Context, ns *domain.Namespace) error {
-	_, err := r.collection.ReplaceOne(ctx, gmqb.Eq(r.f("ID"), ns.ID), ns)
+	_, err := r.collection.UpdateOne(ctx, gmqb.Eq(r.f("ID"), ns.ID),
+		gmqb.NewUpdate().
+			Set(r.f("Name"), ns.Name).
+			Set(r.f("Config"), ns.Config),
+	)
 	return err
 }
 
 func (r *mongoNamespaceRepository) Delete(ctx context.Context, id string) error {
-	_, err := r.collection.DeleteOne(ctx, gmqb.Eq(r.f("ID"), id))
+	objID, err := bson.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	}
+	_, err = r.collection.DeleteOne(ctx, gmqb.Eq(r.f("ID"), objID))
 	return err
 }

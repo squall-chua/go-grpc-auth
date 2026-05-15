@@ -34,7 +34,7 @@ func (r *memoryRateLimiter) Allow(ctx context.Context, key string) (bool, error)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	now := time.Now()
+	now := time.Now().UTC()
 	b, exists := r.limits[key]
 
 	if !exists || now.After(b.resetTime) {

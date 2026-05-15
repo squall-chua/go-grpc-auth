@@ -20,11 +20,12 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	OIDCClientService_RegisterClient_FullMethodName = "/admin.v1.OIDCClientService/RegisterClient"
-	OIDCClientService_GetClient_FullMethodName      = "/admin.v1.OIDCClientService/GetClient"
-	OIDCClientService_UpdateClient_FullMethodName   = "/admin.v1.OIDCClientService/UpdateClient"
-	OIDCClientService_DeleteClient_FullMethodName   = "/admin.v1.OIDCClientService/DeleteClient"
-	OIDCClientService_ListClients_FullMethodName    = "/admin.v1.OIDCClientService/ListClients"
+	OIDCClientService_RegisterClient_FullMethodName     = "/admin.v1.OIDCClientService/RegisterClient"
+	OIDCClientService_GetClient_FullMethodName          = "/admin.v1.OIDCClientService/GetClient"
+	OIDCClientService_UpdateClient_FullMethodName       = "/admin.v1.OIDCClientService/UpdateClient"
+	OIDCClientService_DeleteClient_FullMethodName       = "/admin.v1.OIDCClientService/DeleteClient"
+	OIDCClientService_ListClients_FullMethodName        = "/admin.v1.OIDCClientService/ListClients"
+	OIDCClientService_RotateClientSecret_FullMethodName = "/admin.v1.OIDCClientService/RotateClientSecret"
 )
 
 // OIDCClientServiceClient is the client API for OIDCClientService service.
@@ -36,6 +37,7 @@ type OIDCClientServiceClient interface {
 	UpdateClient(ctx context.Context, in *UpdateClientRequest, opts ...grpc.CallOption) (*OIDCClient, error)
 	DeleteClient(ctx context.Context, in *DeleteClientRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ListClients(ctx context.Context, in *ListClientsRequest, opts ...grpc.CallOption) (*ListClientsResponse, error)
+	RotateClientSecret(ctx context.Context, in *RotateClientSecretRequest, opts ...grpc.CallOption) (*RotateClientSecretResponse, error)
 }
 
 type oIDCClientServiceClient struct {
@@ -91,6 +93,15 @@ func (c *oIDCClientServiceClient) ListClients(ctx context.Context, in *ListClien
 	return out, nil
 }
 
+func (c *oIDCClientServiceClient) RotateClientSecret(ctx context.Context, in *RotateClientSecretRequest, opts ...grpc.CallOption) (*RotateClientSecretResponse, error) {
+	out := new(RotateClientSecretResponse)
+	err := c.cc.Invoke(ctx, OIDCClientService_RotateClientSecret_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // OIDCClientServiceServer is the server API for OIDCClientService service.
 // All implementations should embed UnimplementedOIDCClientServiceServer
 // for forward compatibility
@@ -100,6 +111,7 @@ type OIDCClientServiceServer interface {
 	UpdateClient(context.Context, *UpdateClientRequest) (*OIDCClient, error)
 	DeleteClient(context.Context, *DeleteClientRequest) (*emptypb.Empty, error)
 	ListClients(context.Context, *ListClientsRequest) (*ListClientsResponse, error)
+	RotateClientSecret(context.Context, *RotateClientSecretRequest) (*RotateClientSecretResponse, error)
 }
 
 // UnimplementedOIDCClientServiceServer should be embedded to have forward compatible implementations.
@@ -120,6 +132,9 @@ func (UnimplementedOIDCClientServiceServer) DeleteClient(context.Context, *Delet
 }
 func (UnimplementedOIDCClientServiceServer) ListClients(context.Context, *ListClientsRequest) (*ListClientsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListClients not implemented")
+}
+func (UnimplementedOIDCClientServiceServer) RotateClientSecret(context.Context, *RotateClientSecretRequest) (*RotateClientSecretResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RotateClientSecret not implemented")
 }
 
 // UnsafeOIDCClientServiceServer may be embedded to opt out of forward compatibility for this service.
@@ -223,6 +238,24 @@ func _OIDCClientService_ListClients_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _OIDCClientService_RotateClientSecret_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RotateClientSecretRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OIDCClientServiceServer).RotateClientSecret(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OIDCClientService_RotateClientSecret_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OIDCClientServiceServer).RotateClientSecret(ctx, req.(*RotateClientSecretRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // OIDCClientService_ServiceDesc is the grpc.ServiceDesc for OIDCClientService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -249,6 +282,10 @@ var OIDCClientService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListClients",
 			Handler:    _OIDCClientService_ListClients_Handler,
+		},
+		{
+			MethodName: "RotateClientSecret",
+			Handler:    _OIDCClientService_RotateClientSecret_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

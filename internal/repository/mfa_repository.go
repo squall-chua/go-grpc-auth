@@ -5,6 +5,7 @@ import (
 
 	"github.com/squall-chua/gmqb"
 	"github.com/squall-chua/go-grpc-auth/internal/domain"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
@@ -62,6 +63,9 @@ func (r *mongoMFARepository) DeleteSecret(ctx context.Context, userID string, me
 }
 
 func (r *mongoMFARepository) CreateToken(ctx context.Context, token *domain.MFAToken) error {
+	if token.ID == bson.NilObjectID {
+		token.ID = bson.NewObjectID()
+	}
 	_, err := r.tokens.InsertOne(ctx, token)
 	return err
 }

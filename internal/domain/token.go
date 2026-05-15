@@ -1,16 +1,20 @@
 package domain
 
-import "time"
+import (
+	"time"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+)
 
 type Token struct {
-	ID        string
-	TokenHash string
-	UserID    string
-	Namespace string
-	Type      string // access, refresh
-	Scopes    []string
-	ExpiresAt time.Time
-	CreatedAt time.Time
+	ID        bson.ObjectID `bson:"_id,omitempty"`
+	TokenHash string        `bson:"token_hash"`
+	UserID    string        `bson:"user_id"`
+	Namespace string        `bson:"namespace"`
+	Type      string        `bson:"type"` // access, refresh
+	Scopes    []string      `bson:"scopes"`
+	ExpiresAt time.Time     `bson:"expires_at"`
+	CreatedAt time.Time     `bson:"created_at"`
 }
 
 type TokenPair struct {

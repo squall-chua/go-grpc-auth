@@ -20,20 +20,21 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	AdminService_ListUsers_FullMethodName            = "/admin.v1.AdminService/ListUsers"
-	AdminService_GetUser_FullMethodName              = "/admin.v1.AdminService/GetUser"
-	AdminService_UpdateUserStatus_FullMethodName     = "/admin.v1.AdminService/UpdateUserStatus"
-	AdminService_ResetUserPassword_FullMethodName    = "/admin.v1.AdminService/ResetUserPassword"
-	AdminService_GrantRoles_FullMethodName           = "/admin.v1.AdminService/GrantRoles"
-	AdminService_RevokeRoles_FullMethodName          = "/admin.v1.AdminService/RevokeRoles"
-	AdminService_GrantPermissions_FullMethodName     = "/admin.v1.AdminService/GrantPermissions"
-	AdminService_RevokePermissions_FullMethodName    = "/admin.v1.AdminService/RevokePermissions"
-	AdminService_CreateRole_FullMethodName           = "/admin.v1.AdminService/CreateRole"
-	AdminService_ListRoles_FullMethodName            = "/admin.v1.AdminService/ListRoles"
-	AdminService_DeleteRole_FullMethodName           = "/admin.v1.AdminService/DeleteRole"
-	AdminService_ListServiceAccounts_FullMethodName  = "/admin.v1.AdminService/ListServiceAccounts"
-	AdminService_CreateServiceAccount_FullMethodName = "/admin.v1.AdminService/CreateServiceAccount"
-	AdminService_ListAuditLogs_FullMethodName        = "/admin.v1.AdminService/ListAuditLogs"
+	AdminService_ListUsers_FullMethodName         = "/admin.v1.AdminService/ListUsers"
+	AdminService_GetUser_FullMethodName           = "/admin.v1.AdminService/GetUser"
+	AdminService_UpdateUserStatus_FullMethodName  = "/admin.v1.AdminService/UpdateUserStatus"
+	AdminService_ResetUserPassword_FullMethodName = "/admin.v1.AdminService/ResetUserPassword"
+	AdminService_GrantRoles_FullMethodName        = "/admin.v1.AdminService/GrantRoles"
+	AdminService_RevokeRoles_FullMethodName       = "/admin.v1.AdminService/RevokeRoles"
+	AdminService_GrantPermissions_FullMethodName  = "/admin.v1.AdminService/GrantPermissions"
+	AdminService_RevokePermissions_FullMethodName = "/admin.v1.AdminService/RevokePermissions"
+	AdminService_CreateRole_FullMethodName        = "/admin.v1.AdminService/CreateRole"
+	AdminService_ListRoles_FullMethodName         = "/admin.v1.AdminService/ListRoles"
+	AdminService_DeleteRole_FullMethodName        = "/admin.v1.AdminService/DeleteRole"
+	AdminService_CreatePermission_FullMethodName  = "/admin.v1.AdminService/CreatePermission"
+	AdminService_ListPermissions_FullMethodName   = "/admin.v1.AdminService/ListPermissions"
+	AdminService_DeletePermission_FullMethodName  = "/admin.v1.AdminService/DeletePermission"
+	AdminService_ListAuditLogs_FullMethodName     = "/admin.v1.AdminService/ListAuditLogs"
 )
 
 // AdminServiceClient is the client API for AdminService service.
@@ -55,9 +56,10 @@ type AdminServiceClient interface {
 	CreateRole(ctx context.Context, in *CreateRoleRequest, opts ...grpc.CallOption) (*Role, error)
 	ListRoles(ctx context.Context, in *ListRolesRequest, opts ...grpc.CallOption) (*ListRolesResponse, error)
 	DeleteRole(ctx context.Context, in *DeleteRoleRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Service Accounts
-	ListServiceAccounts(ctx context.Context, in *ListServiceAccountsRequest, opts ...grpc.CallOption) (*ListServiceAccountsResponse, error)
-	CreateServiceAccount(ctx context.Context, in *CreateServiceAccountRequest, opts ...grpc.CallOption) (*ServiceAccount, error)
+	// Permission Management
+	CreatePermission(ctx context.Context, in *CreatePermissionRequest, opts ...grpc.CallOption) (*Permission, error)
+	ListPermissions(ctx context.Context, in *ListPermissionsRequest, opts ...grpc.CallOption) (*ListPermissionsResponse, error)
+	DeletePermission(ctx context.Context, in *DeletePermissionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Audit Logs
 	ListAuditLogs(ctx context.Context, in *ListAuditLogsRequest, opts ...grpc.CallOption) (*ListAuditLogsResponse, error)
 }
@@ -169,18 +171,27 @@ func (c *adminServiceClient) DeleteRole(ctx context.Context, in *DeleteRoleReque
 	return out, nil
 }
 
-func (c *adminServiceClient) ListServiceAccounts(ctx context.Context, in *ListServiceAccountsRequest, opts ...grpc.CallOption) (*ListServiceAccountsResponse, error) {
-	out := new(ListServiceAccountsResponse)
-	err := c.cc.Invoke(ctx, AdminService_ListServiceAccounts_FullMethodName, in, out, opts...)
+func (c *adminServiceClient) CreatePermission(ctx context.Context, in *CreatePermissionRequest, opts ...grpc.CallOption) (*Permission, error) {
+	out := new(Permission)
+	err := c.cc.Invoke(ctx, AdminService_CreatePermission_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *adminServiceClient) CreateServiceAccount(ctx context.Context, in *CreateServiceAccountRequest, opts ...grpc.CallOption) (*ServiceAccount, error) {
-	out := new(ServiceAccount)
-	err := c.cc.Invoke(ctx, AdminService_CreateServiceAccount_FullMethodName, in, out, opts...)
+func (c *adminServiceClient) ListPermissions(ctx context.Context, in *ListPermissionsRequest, opts ...grpc.CallOption) (*ListPermissionsResponse, error) {
+	out := new(ListPermissionsResponse)
+	err := c.cc.Invoke(ctx, AdminService_ListPermissions_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) DeletePermission(ctx context.Context, in *DeletePermissionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, AdminService_DeletePermission_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -215,9 +226,10 @@ type AdminServiceServer interface {
 	CreateRole(context.Context, *CreateRoleRequest) (*Role, error)
 	ListRoles(context.Context, *ListRolesRequest) (*ListRolesResponse, error)
 	DeleteRole(context.Context, *DeleteRoleRequest) (*emptypb.Empty, error)
-	// Service Accounts
-	ListServiceAccounts(context.Context, *ListServiceAccountsRequest) (*ListServiceAccountsResponse, error)
-	CreateServiceAccount(context.Context, *CreateServiceAccountRequest) (*ServiceAccount, error)
+	// Permission Management
+	CreatePermission(context.Context, *CreatePermissionRequest) (*Permission, error)
+	ListPermissions(context.Context, *ListPermissionsRequest) (*ListPermissionsResponse, error)
+	DeletePermission(context.Context, *DeletePermissionRequest) (*emptypb.Empty, error)
 	// Audit Logs
 	ListAuditLogs(context.Context, *ListAuditLogsRequest) (*ListAuditLogsResponse, error)
 }
@@ -259,11 +271,14 @@ func (UnimplementedAdminServiceServer) ListRoles(context.Context, *ListRolesRequ
 func (UnimplementedAdminServiceServer) DeleteRole(context.Context, *DeleteRoleRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteRole not implemented")
 }
-func (UnimplementedAdminServiceServer) ListServiceAccounts(context.Context, *ListServiceAccountsRequest) (*ListServiceAccountsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListServiceAccounts not implemented")
+func (UnimplementedAdminServiceServer) CreatePermission(context.Context, *CreatePermissionRequest) (*Permission, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreatePermission not implemented")
 }
-func (UnimplementedAdminServiceServer) CreateServiceAccount(context.Context, *CreateServiceAccountRequest) (*ServiceAccount, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateServiceAccount not implemented")
+func (UnimplementedAdminServiceServer) ListPermissions(context.Context, *ListPermissionsRequest) (*ListPermissionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListPermissions not implemented")
+}
+func (UnimplementedAdminServiceServer) DeletePermission(context.Context, *DeletePermissionRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeletePermission not implemented")
 }
 func (UnimplementedAdminServiceServer) ListAuditLogs(context.Context, *ListAuditLogsRequest) (*ListAuditLogsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAuditLogs not implemented")
@@ -478,38 +493,56 @@ func _AdminService_DeleteRole_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AdminService_ListServiceAccounts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListServiceAccountsRequest)
+func _AdminService_CreatePermission_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreatePermissionRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AdminServiceServer).ListServiceAccounts(ctx, in)
+		return srv.(AdminServiceServer).CreatePermission(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AdminService_ListServiceAccounts_FullMethodName,
+		FullMethod: AdminService_CreatePermission_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AdminServiceServer).ListServiceAccounts(ctx, req.(*ListServiceAccountsRequest))
+		return srv.(AdminServiceServer).CreatePermission(ctx, req.(*CreatePermissionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AdminService_CreateServiceAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateServiceAccountRequest)
+func _AdminService_ListPermissions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPermissionsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AdminServiceServer).CreateServiceAccount(ctx, in)
+		return srv.(AdminServiceServer).ListPermissions(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AdminService_CreateServiceAccount_FullMethodName,
+		FullMethod: AdminService_ListPermissions_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AdminServiceServer).CreateServiceAccount(ctx, req.(*CreateServiceAccountRequest))
+		return srv.(AdminServiceServer).ListPermissions(ctx, req.(*ListPermissionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_DeletePermission_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeletePermissionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).DeletePermission(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_DeletePermission_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).DeletePermission(ctx, req.(*DeletePermissionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -584,12 +617,16 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AdminService_DeleteRole_Handler,
 		},
 		{
-			MethodName: "ListServiceAccounts",
-			Handler:    _AdminService_ListServiceAccounts_Handler,
+			MethodName: "CreatePermission",
+			Handler:    _AdminService_CreatePermission_Handler,
 		},
 		{
-			MethodName: "CreateServiceAccount",
-			Handler:    _AdminService_CreateServiceAccount_Handler,
+			MethodName: "ListPermissions",
+			Handler:    _AdminService_ListPermissions_Handler,
+		},
+		{
+			MethodName: "DeletePermission",
+			Handler:    _AdminService_DeletePermission_Handler,
 		},
 		{
 			MethodName: "ListAuditLogs",

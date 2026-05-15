@@ -6,6 +6,7 @@ import (
 	"github.com/squall-chua/go-grpc-auth/api/v1/auth"
 	"github.com/squall-chua/go-grpc-auth/internal/domain"
 	authservice "github.com/squall-chua/go-grpc-auth/internal/service/auth"
+	"github.com/squall-chua/go-grpc-auth/internal/util"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -16,7 +17,7 @@ type authGRPCServer struct {
 }
 
 func (s *authGRPCServer) GetSocialAuthURL(ctx context.Context, req *auth.SocialAuthURLRequest) (*auth.SocialAuthURLResponse, error) {
-	url, err := s.socialService.GetAuthURL(domain.SocialProvider(req.Provider), req.State)
+	url, err := s.socialService.GetAuthURL(domain.SocialProvider(req.Provider), req.State, req.Namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -80,8 +81,9 @@ func (s *authGRPCServer) RefreshToken(ctx context.Context, req *auth.RefreshToke
 	}, nil
 }
 
-func (s *authGRPCServer) Logout(ctx context.Context, req *auth.LogoutRequest) (*emptypb.Empty, error) {
-	err := s.service.Logout(ctx, req.AccessToken, req.RefreshToken)
+func (s *authGRPCServer) Logout(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	p := util.GetPrincipal(ctx)
+	err := s.service.Logout(ctx, p.UserId)
 	if err != nil {
 		return nil, err
 	}
@@ -89,8 +91,12 @@ func (s *authGRPCServer) Logout(ctx context.Context, req *auth.LogoutRequest) (*
 }
 
 func (s *authGRPCServer) ChangePassword(ctx context.Context, req *auth.ChangePasswordRequest) (*emptypb.Empty, error) {
-	// Need to get userID from context (via interceptor)
-	// For now, returning unimplemented or placeholder
+	p := util.GetPrincipal(ctx)
+
+	err := s.service.ChangePassword(ctx, p.UserId, req.CurrentPassword, req.NewPassword)
+	if err != nil {
+		return nil, err
+	}
 	return &emptypb.Empty{}, nil
 }
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/squall-chua/go-grpc-auth/web"
+	"go.uber.org/zap"
 )
 
 func ServeUI(mux *http.ServeMux) error {
@@ -34,6 +35,7 @@ func ServeUI(mux *http.ServeMux) error {
 			// File not found, serve index.html for SPA routing
 			index, err := distFS.Open("index.html")
 			if err != nil {
+				zap.L().Error("Failed to open index.html", zap.Error(err))
 				http.NotFound(w, r)
 				return
 			}

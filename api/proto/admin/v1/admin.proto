@@ -5,34 +5,9 @@ package admin.v1;
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
-import "protoc-gen-openapiv2/options/annotations.proto";
 import "api/proto/options/v1/auth_rule.proto";
 
 option go_package = "github.com/squall-chua/go-grpc-auth/api/v1/admin;admin";
-
-option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
-  info: {
-    title: "Admin Service API";
-    version: "1.0";
-    description: "API for managing users and roles with gRPC and REST gateway.";
-  };
-  security_definitions: {
-    security: {
-      key: "Bearer";
-      value: {
-        type: TYPE_API_KEY;
-        in: IN_HEADER;
-        name: "Authorization";
-        description: "JWT Authorization header using the Bearer scheme. Example: \"Bearer {token}\"";
-      }
-    }
-  };
-  security: {
-    security_requirement: {
-      key: "Bearer";
-    }
-  };
-};
 
 service AdminService {
   // User Management
@@ -154,27 +129,38 @@ service AdminService {
     };
   }
 
-  // Service Accounts
-  rpc ListServiceAccounts(ListServiceAccountsRequest) returns (ListServiceAccountsResponse) {
+  // Permission Management
+  rpc CreatePermission(CreatePermissionRequest) returns (Permission) {
     option (google.api.http) = {
-      get: "/v1/admin/service-accounts"
-    };
-    option (options.v1.rule) = {
-      roles: ["admin", "superadmin"]
-      permissions: ["service_accounts:read"]
-    };
-  }
-
-  rpc CreateServiceAccount(CreateServiceAccountRequest) returns (ServiceAccount) {
-    option (google.api.http) = {
-      post: "/v1/admin/service-accounts"
+      post: "/v1/admin/permissions"
       body: "*"
     };
     option (options.v1.rule) = {
-      roles: ["admin", "superadmin"]
-      permissions: ["service_accounts:write"]
+      roles: ["superadmin"]
+      permissions: ["permissions:write"]
     };
   }
+
+  rpc ListPermissions(ListPermissionsRequest) returns (ListPermissionsResponse) {
+    option (google.api.http) = {
+      get: "/v1/admin/permissions"
+    };
+    option (options.v1.rule) = {
+      roles: ["admin", "superadmin"]
+      permissions: ["permissions:read"]
+    };
+  }
+
+  rpc DeletePermission(DeletePermissionRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/v1/admin/permissions/{id}"
+    };
+    option (options.v1.rule) = {
+      roles: ["superadmin"]
+      permissions: ["permissions:write"]
+    };
+  }
+
 
   // Audit Logs
   rpc ListAuditLogs(ListAuditLogsRequest) returns (ListAuditLogsResponse) {
@@ -188,11 +174,18 @@ service AdminService {
   }
 }
 
+enum UserStatus {
+  USER_STATUS_UNSPECIFIED = 0;
+  USER_STATUS_ACTIVE = 1;
+  USER_STATUS_INACTIVE = 2;
+  USER_STATUS_BANNED = 3;
+}
+
 message User {
   string id = 1;
   string email = 2;
   string username = 3;
-  string status = 4; // active, inactive, banned
+  UserStatus status = 4;
   repeated string roles = 5;
   repeated string permissions = 6;
   string namespace = 7;
@@ -202,14 +195,14 @@ message User {
 
 message ListUsersRequest {
   int32 page_size = 1;
-  string page_token = 2;
+  int32 page = 2;
   string namespace = 3;
   string query = 4;
 }
 
 message ListUsersResponse {
   repeated User users = 1;
-  string next_page_token = 2;
+  int32 total_pages = 2;
   int32 total_count = 3;
 }
 
@@ -219,7 +212,7 @@ message GetUserRequest {
 
 message UpdateUserStatusRequest {
   string id = 1;
-  string status = 2;
+  UserStatus status = 2;
 }
 
 message ResetUserPasswordRequest {
@@ -262,47 +255,31 @@ message CreateRoleRequest {
 
 message ListRolesRequest {
   string namespace = 1;
+  int32 page_size = 2;
+  int32 page = 3;
 }
 
 message ListRolesResponse {
   repeated Role roles = 1;
+  int32 total_pages = 2;
+  int32 total_count = 3;
 }
 
 message DeleteRoleRequest {
   string id = 1;
 }
 
-message ServiceAccount {
-  string client_id = 1;
-  string client_secret = 2;
-  string name = 3;
-  string namespace = 4;
-  repeated string scopes = 5;
-}
 
-message ListServiceAccountsRequest {
-  string namespace = 1;
-}
-
-message ListServiceAccountsResponse {
-  repeated ServiceAccount service_accounts = 1;
-}
-
-message CreateServiceAccountRequest {
-  string name = 1;
-  string namespace = 2;
-  repeated string scopes = 3;
-}
 message ListAuditLogsRequest {
   string namespace = 1;
   int32 page_size = 2;
-  int32 page_token = 3;
+  int32 page = 3;
 }
 
 message ListAuditLogsResponse {
   repeated AuditLog logs = 1;
-  int32 next_page_token = 2;
-  int64 total_count = 3;
+  int32 total_pages = 2;
+  int32 total_count = 3;
 }
 
 message AuditLog {
@@ -315,3 +292,33 @@ message AuditLog {
   string metadata_json = 7;
   google.protobuf.Timestamp timestamp = 8;
 }
+
+message Permission {
+  string id = 1;
+  string name = 2;
+  string namespace = 3;
+  string description = 4;
+}
+
+message CreatePermissionRequest {
+  string name = 1;
+  string namespace = 2;
+  string description = 3;
+}
+
+message ListPermissionsRequest {
+  string namespace = 1;
+  int32 page_size = 2;
+  int32 page = 3;
+}
+
+message ListPermissionsResponse {
+  repeated Permission permissions = 1;
+  int32 total_pages = 2;
+  int32 total_count = 3;
+}
+
+message DeletePermissionRequest {
+  string id = 1;
+}
+

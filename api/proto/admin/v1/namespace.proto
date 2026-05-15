@@ -93,12 +93,13 @@ message UpdateNamespaceConfigRequest {
 
 message ListNamespacesRequest {
   int32 page_size = 1;
-  string page_token = 2;
+  int32 page = 2;
 }
 
 message ListNamespacesResponse {
   repeated Namespace namespaces = 1;
-  string next_page_token = 2;
+  int32 total_pages = 2;
+  int32 total_count = 3;
 }
 
 message DeleteNamespaceRequest {

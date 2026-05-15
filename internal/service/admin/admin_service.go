@@ -23,11 +23,12 @@ type AdminService interface {
 
 	// Role Management
 	CreateRole(ctx context.Context, role *domain.Role) error
-	ListRoles(ctx context.Context, namespace string) ([]*domain.Role, error)
+	ListRoles(ctx context.Context, namespace string, page, pageSize int) ([]*domain.Role, int64, error)
 	DeleteRole(ctx context.Context, id string) error
 
 	// Permission Management
-	ListPermissions(ctx context.Context, namespace string) ([]*domain.Permission, error)
+	CreatePermission(ctx context.Context, perm *domain.Permission) error
+	ListPermissions(ctx context.Context, namespace string, page, pageSize int) ([]*domain.Permission, int64, error)
 	DeletePermission(ctx context.Context, id string) error
 
 	// Audit Logs
@@ -183,8 +184,9 @@ func (s *adminService) CreateRole(ctx context.Context, role *domain.Role) error 
 	return s.roleRepo.Create(ctx, role)
 }
 
-func (s *adminService) ListRoles(ctx context.Context, namespace string) ([]*domain.Role, error) {
-	return s.roleRepo.List(ctx, namespace)
+func (s *adminService) ListRoles(ctx context.Context, namespace string, page, pageSize int) ([]*domain.Role, int64, error) {
+	offset := (page - 1) * pageSize
+	return s.roleRepo.List(ctx, namespace, offset, pageSize)
 }
 
 func (s *adminService) DeleteRole(ctx context.Context, id string) error {
@@ -195,8 +197,9 @@ func (s *adminService) CreatePermission(ctx context.Context, perm *domain.Permis
 	return s.permRepo.Create(ctx, perm)
 }
 
-func (s *adminService) ListPermissions(ctx context.Context, namespace string) ([]*domain.Permission, error) {
-	return s.permRepo.List(ctx, namespace)
+func (s *adminService) ListPermissions(ctx context.Context, namespace string, page, pageSize int) ([]*domain.Permission, int64, error) {
+	offset := (page - 1) * pageSize
+	return s.permRepo.List(ctx, namespace, offset, pageSize)
 }
 
 func (s *adminService) DeletePermission(ctx context.Context, id string) error {

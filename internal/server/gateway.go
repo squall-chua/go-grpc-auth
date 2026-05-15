@@ -31,6 +31,12 @@ func NewGatewayServer(ctx context.Context, grpcPort string) (*http.Server, error
 		return nil, err
 	}
 
+	err = auth.RegisterOIDCServiceHandlerFromEndpoint(ctx, mux, ":"+grpcPort, opts)
+	if err != nil {
+		return nil, err
+	}
+
+
 	// Wrapper for other HTTP routes (Swagger, Metrics, etc.)
 	handler := http.NewServeMux()
 

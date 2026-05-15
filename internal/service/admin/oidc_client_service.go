@@ -17,7 +17,7 @@ type OIDCClientService interface {
 	GetClient(ctx context.Context, clientID string) (*domain.OIDCClient, error)
 	UpdateClient(ctx context.Context, client *domain.OIDCClient) error
 	DeleteClient(ctx context.Context, clientID string) error
-	ListClients(ctx context.Context, namespace string) ([]*domain.OIDCClient, error)
+	ListClients(ctx context.Context, namespace string, page, pageSize int) ([]*domain.OIDCClient, int64, error)
 	RotateSecret(ctx context.Context, clientID string) (string, error)
 }
 
@@ -43,8 +43,8 @@ func (s *oidcClientService) RegisterClient(ctx context.Context, client *domain.O
 	}
 
 	client.ClientSecret = string(hashed)
-	client.CreatedAt = time.Now()
-	client.UpdatedAt = time.Now()
+	client.CreatedAt = time.Now().UTC()
+	client.UpdatedAt = time.Now().UTC()
 
 	if err := s.repo.Create(ctx, client); err != nil {
 		return "", err
@@ -58,7 +58,7 @@ func (s *oidcClientService) GetClient(ctx context.Context, clientID string) (*do
 }
 
 func (s *oidcClientService) UpdateClient(ctx context.Context, client *domain.OIDCClient) error {
-	client.UpdatedAt = time.Now()
+	client.UpdatedAt = time.Now().UTC()
 	return s.repo.Update(ctx, client)
 }
 
@@ -66,8 +66,9 @@ func (s *oidcClientService) DeleteClient(ctx context.Context, clientID string) e
 	return s.repo.Delete(ctx, clientID)
 }
 
-func (s *oidcClientService) ListClients(ctx context.Context, namespace string) ([]*domain.OIDCClient, error) {
-	return s.repo.List(ctx, namespace)
+func (s *oidcClientService) ListClients(ctx context.Context, namespace string, page, pageSize int) ([]*domain.OIDCClient, int64, error) {
+	offset := (page - 1) * pageSize
+	return s.repo.List(ctx, namespace, offset, pageSize)
 }
 
 func (s *oidcClientService) RotateSecret(ctx context.Context, clientID string) (string, error) {
@@ -87,7 +88,7 @@ func (s *oidcClientService) RotateSecret(ctx context.Context, clientID string) (
 	}
 
 	client.ClientSecret = string(hashed)
-	client.UpdatedAt = time.Now()
+	client.UpdatedAt = time.Now().UTC()
 
 	if err := s.repo.Update(ctx, client); err != nil {
 		return "", err

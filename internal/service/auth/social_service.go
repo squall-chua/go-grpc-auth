@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/squall-chua/go-grpc-auth/internal/domain"
 	"github.com/squall-chua/go-grpc-auth/internal/repository"
 	tokenservice "github.com/squall-chua/go-grpc-auth/internal/service/token"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type SocialAuthService interface {
-	GetAuthURL(provider domain.SocialProvider, state string) (string, error)
+	GetAuthURL(provider domain.SocialProvider, state string, namespace string) (string, error)
 	HandleCallback(ctx context.Context, provider domain.SocialProvider, code string, namespace string) (*domain.TokenResponse, error)
 }
 
@@ -38,11 +38,12 @@ func NewSocialAuthService(
 	}
 }
 
-func (s *socialAuthService) GetAuthURL(provider domain.SocialProvider, state string) (string, error) {
+func (s *socialAuthService) GetAuthURL(provider domain.SocialProvider, state string, namespace string) (string, error) {
 	p, ok := s.providers[provider]
 	if !ok {
 		return "", fmt.Errorf("provider not supported: %s", provider)
 	}
+	// Note: namespace could be encoded into state or used for namespace-specific config
 	return p.GetAuthURL(state), nil
 }
 
@@ -62,13 +63,13 @@ func (s *socialAuthService) HandleCallback(ctx context.Context, provider domain.
 	if err != nil {
 		// Auto-provision user
 		user = &domain.User{
-			ID:        uuid.New().String(),
+			ID:        bson.NewObjectID(),
 			Email:     socialUser.Email,
 			Username:  socialUser.Email, // Default to email
 			Namespace: namespace,
 			Status:    "active",
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
+			CreatedAt: time.Now().UTC(),
+			UpdatedAt: time.Now().UTC(),
 			SocialIdentities: []domain.SocialIdentity{
 				{
 					Provider:   provider,

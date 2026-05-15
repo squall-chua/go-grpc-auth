@@ -3,7 +3,6 @@ package admin
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"github.com/squall-chua/go-grpc-auth/internal/domain"
 	"github.com/squall-chua/go-grpc-auth/internal/repository"
 	"google.golang.org/grpc/codes"
@@ -29,9 +28,6 @@ func NewNamespaceService(nsRepo repository.NamespaceRepository) NamespaceService
 }
 
 func (s *namespaceService) CreateNamespace(ctx context.Context, ns *domain.Namespace) (*domain.Namespace, error) {
-	if ns.ID == "" {
-		ns.ID = uuid.New().String()
-	}
 	if err := s.nsRepo.Create(ctx, ns); err != nil {
 		return nil, status.Error(codes.Internal, "failed to create namespace")
 	}

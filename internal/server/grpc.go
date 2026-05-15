@@ -20,7 +20,9 @@ type GRPCServerConfig struct {
 }
 
 func NewGRPCServer(cfg GRPCServerConfig) *grpc.Server {
-	s := grpc.NewServer()
+	s := grpc.NewServer(
+		grpc.UnaryInterceptor(AuthUnaryInterceptor(cfg.AuthService)),
+	)
 
 	// Register services
 	authv1.RegisterAuthServiceServer(s, &authGRPCServer{

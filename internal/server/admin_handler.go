@@ -2,8 +2,10 @@ package server
 
 import (
 	"context"
+	"strings"
 
 	"encoding/json"
+
 	"github.com/squall-chua/go-grpc-auth/api/v1/admin"
 	"github.com/squall-chua/go-grpc-auth/internal/domain"
 	adminservice "github.com/squall-chua/go-grpc-auth/internal/service/admin"
@@ -17,45 +19,17 @@ type adminGRPCServer struct {
 	clientService adminservice.OIDCClientService
 }
 
-func (s *adminGRPCServer) ListServiceAccounts(ctx context.Context, req *admin.ListServiceAccountsRequest) (*admin.ListServiceAccountsResponse, error) {
-	clients, err := s.clientService.ListClients(ctx, req.Namespace)
-	if err != nil {
-		return nil, err
-	}
-	var sas []*admin.ServiceAccount
-	for _, c := range clients {
-		sas = append(sas, &admin.ServiceAccount{
-			ClientId: c.ClientID,
-			Name:     c.Name,
-			Namespace: c.Namespace,
-			Scopes:    c.AllowedScopes,
-		})
-	}
-	return &admin.ListServiceAccountsResponse{ServiceAccounts: sas}, nil
-}
-
-func (s *adminGRPCServer) CreateServiceAccount(ctx context.Context, req *admin.CreateServiceAccountRequest) (*admin.ServiceAccount, error) {
-	client := &domain.OIDCClient{
-		Name:          req.Name,
-		Namespace:     req.Namespace,
-		AllowedScopes: req.Scopes,
-	}
-	secret, err := s.clientService.RegisterClient(ctx, client)
-	if err != nil {
-		return nil, err
-	}
-	return &admin.ServiceAccount{
-		ClientId:     client.ClientID,
-		ClientSecret: secret,
-		Name:         client.Name,
-		Namespace:    client.Namespace,
-		Scopes:       client.AllowedScopes,
-	}, nil
-}
-
 func (s *adminGRPCServer) ListUsers(ctx context.Context, req *admin.ListUsersRequest) (*admin.ListUsersResponse, error) {
-	page := 1 // Basic paging for now
-	users, total, err := s.service.ListUsers(ctx, req.Namespace, page, int(req.PageSize))
+	page := int(req.Page)
+	if page <= 0 {
+		page = 1
+	}
+	pageSize := int(req.PageSize)
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+
+	users, total, err := s.service.ListUsers(ctx, req.Namespace, page, pageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -63,19 +37,22 @@ func (s *adminGRPCServer) ListUsers(ctx context.Context, req *admin.ListUsersReq
 	var protoUsers []*admin.User
 	for _, u := range users {
 		protoUsers = append(protoUsers, &admin.User{
-			Id:        u.ID,
+			Id:        u.ID.Hex(),
 			Email:     u.Email,
 			Username:  u.Username,
 			Namespace: u.Namespace,
-			Status:    u.Status,
+			Status:    mapUserStatus(u.Status),
 			Roles:     u.Roles,
 			CreatedAt: timestamppb.New(u.CreatedAt),
 			UpdatedAt: timestamppb.New(u.UpdatedAt),
 		})
 	}
 
+	totalPages := int32((total + int64(pageSize) - 1) / int64(pageSize))
+
 	return &admin.ListUsersResponse{
 		Users:      protoUsers,
+		TotalPages: totalPages,
 		TotalCount: int32(total),
 	}, nil
 }
@@ -86,11 +63,11 @@ func (s *adminGRPCServer) GetUser(ctx context.Context, req *admin.GetUserRequest
 		return nil, err
 	}
 	return &admin.User{
-		Id:        u.ID,
+		Id:        u.ID.Hex(),
 		Email:     u.Email,
 		Username:  u.Username,
 		Namespace: u.Namespace,
-		Status:    u.Status,
+		Status:    mapUserStatus(u.Status),
 		Roles:     u.Roles,
 		CreatedAt: timestamppb.New(u.CreatedAt),
 		UpdatedAt: timestamppb.New(u.UpdatedAt),
@@ -98,7 +75,7 @@ func (s *adminGRPCServer) GetUser(ctx context.Context, req *admin.GetUserRequest
 }
 
 func (s *adminGRPCServer) UpdateUserStatus(ctx context.Context, req *admin.UpdateUserStatusRequest) (*emptypb.Empty, error) {
-	err := s.service.UpdateUserStatus(ctx, req.Id, req.Status)
+	err := s.service.UpdateUserStatus(ctx, req.Id, mapProtoUserStatus(req.Status))
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +133,7 @@ func (s *adminGRPCServer) CreateRole(ctx context.Context, req *admin.CreateRoleR
 		return nil, err
 	}
 	return &admin.Role{
-		Id:          role.ID,
+		Id:          role.ID.Hex(),
 		Name:        role.Name,
 		Namespace:   role.Namespace,
 		Permissions: role.Permissions,
@@ -164,24 +141,95 @@ func (s *adminGRPCServer) CreateRole(ctx context.Context, req *admin.CreateRoleR
 }
 
 func (s *adminGRPCServer) ListRoles(ctx context.Context, req *admin.ListRolesRequest) (*admin.ListRolesResponse, error) {
-	roles, err := s.service.ListRoles(ctx, req.Namespace)
+	page := int(req.Page)
+	if page <= 0 {
+		page = 1
+	}
+	pageSize := int(req.PageSize)
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+
+	roles, total, err := s.service.ListRoles(ctx, req.Namespace, page, pageSize)
 	if err != nil {
 		return nil, err
 	}
 	var protoRoles []*admin.Role
 	for _, r := range roles {
 		protoRoles = append(protoRoles, &admin.Role{
-			Id:          r.ID,
+			Id:          r.ID.Hex(),
 			Name:        r.Name,
 			Namespace:   r.Namespace,
 			Permissions: r.Permissions,
 		})
 	}
-	return &admin.ListRolesResponse{Roles: protoRoles}, nil
+	totalPages := int32((total + int64(pageSize) - 1) / int64(pageSize))
+	return &admin.ListRolesResponse{
+		Roles:      protoRoles,
+		TotalPages: totalPages,
+		TotalCount: int32(total),
+	}, nil
 }
 
 func (s *adminGRPCServer) DeleteRole(ctx context.Context, req *admin.DeleteRoleRequest) (*emptypb.Empty, error) {
 	err := s.service.DeleteRole(ctx, req.Id)
+	if err != nil {
+		return nil, err
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (s *adminGRPCServer) CreatePermission(ctx context.Context, req *admin.CreatePermissionRequest) (*admin.Permission, error) {
+	perm := &domain.Permission{
+		Name:        req.Name,
+		Namespace:   req.Namespace,
+		Description: req.Description,
+	}
+	err := s.service.CreatePermission(ctx, perm)
+	if err != nil {
+		return nil, err
+	}
+	return &admin.Permission{
+		Id:          perm.ID.Hex(),
+		Name:        perm.Name,
+		Namespace:   perm.Namespace,
+		Description: perm.Description,
+	}, nil
+}
+
+func (s *adminGRPCServer) ListPermissions(ctx context.Context, req *admin.ListPermissionsRequest) (*admin.ListPermissionsResponse, error) {
+	page := int(req.Page)
+	if page <= 0 {
+		page = 1
+	}
+	pageSize := int(req.PageSize)
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+
+	perms, total, err := s.service.ListPermissions(ctx, req.Namespace, page, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	var protoPerms []*admin.Permission
+	for _, p := range perms {
+		protoPerms = append(protoPerms, &admin.Permission{
+			Id:          p.ID.Hex(),
+			Name:        p.Name,
+			Namespace:   p.Namespace,
+			Description: p.Description,
+		})
+	}
+	totalPages := int32((total + int64(pageSize) - 1) / int64(pageSize))
+	return &admin.ListPermissionsResponse{
+		Permissions: protoPerms,
+		TotalPages:  totalPages,
+		TotalCount:  int32(total),
+	}, nil
+}
+
+func (s *adminGRPCServer) DeletePermission(ctx context.Context, req *admin.DeletePermissionRequest) (*emptypb.Empty, error) {
+	err := s.service.DeletePermission(ctx, req.Id)
 	if err != nil {
 		return nil, err
 	}
@@ -214,8 +262,16 @@ func (s *namespaceGRPCServer) GetNamespace(ctx context.Context, req *admin.GetNa
 }
 
 func (s *namespaceGRPCServer) ListNamespaces(ctx context.Context, req *admin.ListNamespacesRequest) (*admin.ListNamespacesResponse, error) {
-	// Simple page for now
-	namespaces, _, err := s.service.ListNamespaces(ctx, 1, int(req.PageSize))
+	page := int(req.Page)
+	if page <= 0 {
+		page = 1
+	}
+	pageSize := int(req.PageSize)
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+
+	namespaces, total, err := s.service.ListNamespaces(ctx, page, pageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -225,8 +281,12 @@ func (s *namespaceGRPCServer) ListNamespaces(ctx context.Context, req *admin.Lis
 		protoNamespaces = append(protoNamespaces, mapNamespace(ns))
 	}
 
+	totalPages := int32((total + int64(pageSize) - 1) / int64(pageSize))
+
 	return &admin.ListNamespacesResponse{
 		Namespaces: protoNamespaces,
+		TotalPages: totalPages,
+		TotalCount: int32(total),
 	}, nil
 }
 
@@ -263,7 +323,7 @@ func (s *namespaceGRPCServer) DeleteNamespace(ctx context.Context, req *admin.De
 
 func mapNamespace(ns *domain.Namespace) *admin.Namespace {
 	return &admin.Namespace{
-		Id:   ns.ID,
+		Id:   ns.ID.Hex(),
 		Name: ns.Name,
 		Config: &admin.NamespaceConfig{
 			MfaRequired:            ns.Config.MFARequired,
@@ -283,7 +343,7 @@ func (s *adminGRPCServer) ListAuditLogs(ctx context.Context, req *admin.ListAudi
 	if pageSize == 0 {
 		pageSize = 10
 	}
-	page := int(req.PageToken)
+	page := int(req.Page)
 	if page == 0 {
 		page = 1
 	}
@@ -303,7 +363,7 @@ func (s *adminGRPCServer) ListAuditLogs(ctx context.Context, req *admin.ListAudi
 		}
 
 		protoLogs = append(protoLogs, &admin.AuditLog{
-			Id:           l.ID,
+			Id:           l.ID.Hex(),
 			Event:        string(l.Event),
 			UserId:       l.UserID,
 			Namespace:    l.Namespace,
@@ -314,14 +374,24 @@ func (s *adminGRPCServer) ListAuditLogs(ctx context.Context, req *admin.ListAudi
 		})
 	}
 
-	var nextPageToken int32
-	if int64(page*pageSize) < total {
-		nextPageToken = int32(page + 1)
-	}
+	totalPages := int32((total + int64(pageSize) - 1) / int64(pageSize))
 
 	return &admin.ListAuditLogsResponse{
-		Logs:          protoLogs,
-		NextPageToken: nextPageToken,
-		TotalCount:    total,
+		Logs:       protoLogs,
+		TotalPages: totalPages,
+		TotalCount: int32(total),
 	}, nil
+}
+
+func mapUserStatus(status string) admin.UserStatus {
+	key := "USER_STATUS_" + strings.ToUpper(status)
+	if val, ok := admin.UserStatus_value[key]; ok {
+		return admin.UserStatus(val)
+	}
+	return admin.UserStatus_USER_STATUS_UNSPECIFIED
+}
+
+func mapProtoUserStatus(status admin.UserStatus) string {
+	name := admin.UserStatus_name[int32(status)]
+	return strings.ToLower(strings.TrimPrefix(name, "USER_STATUS_"))
 }
