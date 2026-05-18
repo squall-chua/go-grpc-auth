@@ -2,7 +2,9 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,12 +27,18 @@ type MFAService interface {
 	VerifyMFAToken(ctx context.Context, tokenStr string) (*domain.MFAToken, error)
 }
 
-type mfaService struct {
-	repo repository.MFARepository
+type MFAConfig struct {
+	EmailEnabled bool
+	SMSEnabled   bool
 }
 
-func NewMFAService(repo repository.MFARepository) MFAService {
-	return &mfaService{repo: repo}
+type mfaService struct {
+	repo   repository.MFARepository
+	config MFAConfig
+}
+
+func NewMFAService(repo repository.MFARepository, config MFAConfig) MFAService {
+	return &mfaService{repo: repo, config: config}
 }
 
 func (s *mfaService) InitiateTOTP(ctx context.Context, userID string, issuer string, accountName string) (string, string, error) {
@@ -77,25 +85,96 @@ func (s *mfaService) VerifyTOTP(ctx context.Context, userID string, code string)
 }
 
 func (s *mfaService) InitiateEmailOTP(ctx context.Context, userID string, email string) error {
-	// Mock: generate 6-digit code and send via email
-	fmt.Printf("[MFA] Sending Email OTP to %s\n", email)
-	return nil
+	if !s.config.EmailEnabled {
+		return fmt.Errorf("email OTP delivery is not enabled")
+	}
+
+	code, err := generateOTPCode(6)
+	if err != nil {
+		return fmt.Errorf("failed to generate OTP: %w", err)
+	}
+
+	secret := &domain.MFASecret{
+		UserID:    userID,
+		Method:    domain.MFAMethodEmail,
+		Secret:    code,
+		Confirmed: false,
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+	if err := s.repo.UpsertSecret(ctx, secret); err != nil {
+		return fmt.Errorf("failed to store email OTP: %w", err)
+	}
+
+	// TODO: integrate with an email delivery provider (e.g. SES, SendGrid)
+	return fmt.Errorf("email OTP delivery not implemented")
 }
 
 func (s *mfaService) VerifyEmailOTP(ctx context.Context, userID string, code string) (bool, error) {
-	// Mock: verify code from repo
-	return code == "123456", nil
+	return s.verifyOTP(ctx, userID, domain.MFAMethodEmail, code)
 }
 
 func (s *mfaService) InitiateSMSOTP(ctx context.Context, userID string, phoneNumber string) error {
-	// Mock: generate 6-digit code and send via SMS
-	fmt.Printf("[MFA] Sending SMS OTP to %s\n", phoneNumber)
-	return nil
+	if !s.config.SMSEnabled {
+		return fmt.Errorf("SMS OTP delivery is not enabled")
+	}
+
+	code, err := generateOTPCode(6)
+	if err != nil {
+		return fmt.Errorf("failed to generate OTP: %w", err)
+	}
+
+	secret := &domain.MFASecret{
+		UserID:    userID,
+		Method:    domain.MFAMethodSMS,
+		Secret:    code,
+		Confirmed: false,
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+	if err := s.repo.UpsertSecret(ctx, secret); err != nil {
+		return fmt.Errorf("failed to store SMS OTP: %w", err)
+	}
+
+	// TODO: integrate with an SMS gateway (e.g. Twilio, AWS SNS)
+	return fmt.Errorf("SMS OTP delivery not implemented")
 }
 
 func (s *mfaService) VerifySMSOTP(ctx context.Context, userID string, code string) (bool, error) {
-	// Mock: verify code from repo
-	return code == "123456", nil
+	return s.verifyOTP(ctx, userID, domain.MFAMethodSMS, code)
+}
+
+func (s *mfaService) verifyOTP(ctx context.Context, userID string, method domain.MFAMethod, code string) (bool, error) {
+	secret, err := s.repo.GetSecret(ctx, userID, method)
+	if err != nil {
+		return false, fmt.Errorf("OTP not found or expired: %w", err)
+	}
+
+	// OTP codes expire after 5 minutes
+	if time.Since(secret.CreatedAt) > 5*time.Minute {
+		s.repo.DeleteSecret(ctx, userID, method)
+		return false, nil
+	}
+
+	if secret.Secret != code {
+		return false, nil
+	}
+
+	// Clean up used OTP
+	s.repo.DeleteSecret(ctx, userID, method)
+	return true, nil
+}
+
+func generateOTPCode(length int) (string, error) {
+	code := ""
+	for i := 0; i < length; i++ {
+		n, err := rand.Int(rand.Reader, big.NewInt(10))
+		if err != nil {
+			return "", err
+		}
+		code += fmt.Sprintf("%d", n.Int64())
+	}
+	return code, nil
 }
 
 func (s *mfaService) CreateMFAToken(ctx context.Context, userID string, namespace string, method domain.MFAMethod) (string, error) {

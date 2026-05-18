@@ -2,18 +2,28 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/squall-chua/gmqb"
 	"github.com/squall-chua/go-grpc-auth/internal/domain"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
+
+type ClientUpdateFields struct {
+	Name          string
+	RedirectURIs  []string
+	AllowedScopes []string
+	SkipConsent   bool
+}
 
 type ClientRepository interface {
 	Create(ctx context.Context, client *domain.OIDCClient) error
 	GetByID(ctx context.Context, clientID string) (*domain.OIDCClient, error)
-	List(ctx context.Context, namespace string, offset, limit int) ([]*domain.OIDCClient, int64, error)
-	Update(ctx context.Context, client *domain.OIDCClient) error
+	List(ctx context.Context, namespace, query string, offset, limit int) ([]*domain.OIDCClient, int64, error)
+	Update(ctx context.Context, clientID string, fields ClientUpdateFields) (*domain.OIDCClient, error)
+	UpdateSecret(ctx context.Context, clientID string, hashedSecret string) error
 	Delete(ctx context.Context, clientID string) error
 }
 
@@ -41,10 +51,23 @@ func (r *mongoClientRepository) GetByID(ctx context.Context, clientID string) (*
 	return r.collection.FindOne(ctx, gmqb.Eq(r.f("ClientID"), clientID))
 }
 
-func (r *mongoClientRepository) List(ctx context.Context, namespace string, offset, limit int) ([]*domain.OIDCClient, int64, error) {
-	filter := gmqb.NewFilter()
+func (r *mongoClientRepository) List(ctx context.Context, namespace, query string, offset, limit int) ([]*domain.OIDCClient, int64, error) {
+	conditions := []gmqb.Filter{}
 	if namespace != "" {
-		filter.Eq(r.f("Namespace"), namespace)
+		conditions = append(conditions, gmqb.Eq(r.f("Namespace"), namespace))
+	}
+	if query != "" {
+		conditions = append(conditions, gmqb.Or(
+			gmqb.Regex(r.f("ClientID"), query, "i"),
+			gmqb.Regex(r.f("Name"), query, "i"),
+		))
+	}
+
+	var filter gmqb.Filter
+	if len(conditions) > 0 {
+		filter = gmqb.And(conditions...)
+	} else {
+		filter = gmqb.NewFilter()
 	}
 
 	pipeline := gmqb.NewPipeline().
@@ -87,16 +110,24 @@ func (r *mongoClientRepository) List(ctx context.Context, namespace string, offs
 	return clients, total, nil
 }
 
-func (r *mongoClientRepository) Update(ctx context.Context, client *domain.OIDCClient) error {
-	_, err := r.collection.UpdateOne(ctx, gmqb.Eq(r.f("ClientID"), client.ClientID),
+func (r *mongoClientRepository) Update(ctx context.Context, clientID string, fields ClientUpdateFields) (*domain.OIDCClient, error) {
+	return r.collection.FindOneAndUpdate(ctx,
+		gmqb.Eq(r.f("ClientID"), clientID),
 		gmqb.NewUpdate().
-			Set(r.f("Name"), client.Name).
-			Set(r.f("ClientSecret"), client.ClientSecret).
-			Set(r.f("RedirectURIs"), client.RedirectURIs).
-			Set(r.f("PostLogoutRedirectURIs"), client.PostLogoutRedirectURIs).
-			Set(r.f("AllowedScopes"), client.AllowedScopes).
-			Set(r.f("SkipConsent"), client.SkipConsent).
-			Set(r.f("UpdatedAt"), client.UpdatedAt),
+			Set(r.f("Name"), fields.Name).
+			Set(r.f("RedirectURIs"), fields.RedirectURIs).
+			Set(r.f("AllowedScopes"), fields.AllowedScopes).
+			Set(r.f("SkipConsent"), fields.SkipConsent).
+			Set(r.f("UpdatedAt"), time.Now().UTC()),
+		gmqb.WithReturnDocument(options.After),
+	)
+}
+
+func (r *mongoClientRepository) UpdateSecret(ctx context.Context, clientID string, hashedSecret string) error {
+	_, err := r.collection.UpdateOne(ctx, gmqb.Eq(r.f("ClientID"), clientID),
+		gmqb.NewUpdate().
+			Set(r.f("ClientSecret"), hashedSecret).
+			Set(r.f("UpdatedAt"), time.Now().UTC()),
 	)
 	return err
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/squall-chua/go-grpc-auth/api/v1/admin"
 	"github.com/squall-chua/go-grpc-auth/internal/domain"
 	adminservice "github.com/squall-chua/go-grpc-auth/internal/service/admin"
+	"github.com/squall-chua/go-grpc-auth/internal/service/audit"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -29,7 +30,7 @@ func (s *adminGRPCServer) ListUsers(ctx context.Context, req *admin.ListUsersReq
 		pageSize = 10
 	}
 
-	users, total, err := s.service.ListUsers(ctx, req.Namespace, page, pageSize)
+	users, total, err := s.service.ListUsers(ctx, req.Namespace, req.Query, req.Status, page, pageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -37,14 +38,15 @@ func (s *adminGRPCServer) ListUsers(ctx context.Context, req *admin.ListUsersReq
 	var protoUsers []*admin.User
 	for _, u := range users {
 		protoUsers = append(protoUsers, &admin.User{
-			Id:        u.ID.Hex(),
-			Email:     u.Email,
-			Username:  u.Username,
-			Namespace: u.Namespace,
-			Status:    mapUserStatus(u.Status),
-			Roles:     u.Roles,
-			CreatedAt: timestamppb.New(u.CreatedAt),
-			UpdatedAt: timestamppb.New(u.UpdatedAt),
+			Id:          u.ID.Hex(),
+			Email:       u.Email,
+			Username:    u.Username,
+			Namespace:   u.Namespace,
+			Status:      mapUserStatus(u.Status),
+			Roles:       u.Roles,
+			Permissions: u.Permissions,
+			CreatedAt:   timestamppb.New(u.CreatedAt),
+			UpdatedAt:   timestamppb.New(u.UpdatedAt),
 		})
 	}
 
@@ -63,14 +65,15 @@ func (s *adminGRPCServer) GetUser(ctx context.Context, req *admin.GetUserRequest
 		return nil, err
 	}
 	return &admin.User{
-		Id:        u.ID.Hex(),
-		Email:     u.Email,
-		Username:  u.Username,
-		Namespace: u.Namespace,
-		Status:    mapUserStatus(u.Status),
-		Roles:     u.Roles,
-		CreatedAt: timestamppb.New(u.CreatedAt),
-		UpdatedAt: timestamppb.New(u.UpdatedAt),
+		Id:          u.ID.Hex(),
+		Email:       u.Email,
+		Username:    u.Username,
+		Namespace:   u.Namespace,
+		Status:      mapUserStatus(u.Status),
+		Roles:       u.Roles,
+		Permissions: u.Permissions,
+		CreatedAt:   timestamppb.New(u.CreatedAt),
+		UpdatedAt:   timestamppb.New(u.UpdatedAt),
 	}, nil
 }
 
@@ -271,7 +274,7 @@ func (s *namespaceGRPCServer) ListNamespaces(ctx context.Context, req *admin.Lis
 		pageSize = 10
 	}
 
-	namespaces, total, err := s.service.ListNamespaces(ctx, page, pageSize)
+	namespaces, total, err := s.service.ListNamespaces(ctx, req.Query, page, pageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -348,7 +351,19 @@ func (s *adminGRPCServer) ListAuditLogs(ctx context.Context, req *admin.ListAudi
 		page = 1
 	}
 
-	logs, total, err := s.service.ListAuditLogs(ctx, req.Namespace, page, pageSize)
+	filter := audit.AuditListFilter{
+		Namespace: req.Namespace,
+		Event:     req.Event,
+		UserID:    req.UserId,
+	}
+	if req.From != nil {
+		filter.From = req.From.AsTime()
+	}
+	if req.To != nil {
+		filter.To = req.To.AsTime()
+	}
+
+	logs, total, err := s.service.ListAuditLogs(ctx, filter, page, pageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -383,15 +398,15 @@ func (s *adminGRPCServer) ListAuditLogs(ctx context.Context, req *admin.ListAudi
 	}, nil
 }
 
-func mapUserStatus(status string) admin.UserStatus {
-	key := "USER_STATUS_" + strings.ToUpper(status)
+func mapUserStatus(status domain.UserStatus) admin.UserStatus {
+	key := "USER_STATUS_" + strings.ToUpper(string(status))
 	if val, ok := admin.UserStatus_value[key]; ok {
 		return admin.UserStatus(val)
 	}
 	return admin.UserStatus_USER_STATUS_UNSPECIFIED
 }
 
-func mapProtoUserStatus(status admin.UserStatus) string {
+func mapProtoUserStatus(status admin.UserStatus) domain.UserStatus {
 	name := admin.UserStatus_name[int32(status)]
-	return strings.ToLower(strings.TrimPrefix(name, "USER_STATUS_"))
+	return domain.UserStatus(strings.ToLower(strings.TrimPrefix(name, "USER_STATUS_")))
 }

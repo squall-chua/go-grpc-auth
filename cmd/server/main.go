@@ -70,8 +70,11 @@ func main() {
 	kid := keys.GenerateKID(publicKey)
 
 	// Services
-	tokenSvc := tokenservice.NewTokenService(tokenRepo, userRepo, clientRepo, privateKey, kid, cfg.Issuer, cfg.AccessTokenDuration, cfg.RefreshTokenDuration)
-	mfaSvc := authservice.NewMFAService(mfaRepo)
+	tokenSvc := tokenservice.NewTokenService(db.Client, tokenRepo, userRepo, clientRepo, privateKey, kid, cfg.Issuer, cfg.AccessTokenDuration, cfg.RefreshTokenDuration)
+	mfaSvc := authservice.NewMFAService(mfaRepo, authservice.MFAConfig{
+		EmailEnabled: cfg.MFAEmailEnabled,
+		SMSEnabled:   cfg.MFASMSEnabled,
+	})
 	auditSvc := audit.NewAuditService(auditRepo)
 
 	var rateLimiter ratelimit.RateLimiter
@@ -86,8 +89,8 @@ func main() {
 		logger.Info("Rate limiting: Memory fallback")
 	}
 
-	webhookSvc := webhook.NewWebhookService()
-	authSvc := authservice.NewAuthService(userRepo, tokenSvc, nsRepo, mfaSvc, auditSvc, rateLimiter, webhookSvc)
+	webhookSvc := webhook.NewWebhookService(nsRepo)
+	authSvc := authservice.NewAuthService(cfg.Issuer, userRepo, tokenSvc, nsRepo, mfaSvc, auditSvc, rateLimiter, webhookSvc)
 	oidcClientSvc := adminservice.NewOIDCClientService(clientRepo)
 	adminSvc := adminservice.NewAdminService(userRepo, roleRepo, permRepo, oidcClientSvc, auditSvc)
 	nsSvc := adminservice.NewNamespaceService(nsRepo)

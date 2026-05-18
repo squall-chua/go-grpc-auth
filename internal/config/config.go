@@ -27,6 +27,9 @@ type Config struct {
 	// Token Durations
 	AccessTokenDuration  time.Duration
 	RefreshTokenDuration time.Duration
+	// MFA Delivery
+	MFAEmailEnabled bool
+	MFASMSEnabled   bool
 }
 
 func Load() *Config {
@@ -55,6 +58,10 @@ func Load() *Config {
 	flag.DurationVar(&cfg.AccessTokenDuration, "access-token-duration", getEnvDuration("ACCESS_TOKEN_DURATION", 15*time.Minute), "Access token duration")
 	flag.DurationVar(&cfg.RefreshTokenDuration, "refresh-token-duration", getEnvDuration("REFRESH_TOKEN_DURATION", 7*24*time.Hour), "Refresh token duration")
 
+	// MFA Delivery
+	flag.BoolVar(&cfg.MFAEmailEnabled, "mfa-email-enabled", getEnvBool("MFA_EMAIL_ENABLED", false), "Enable email OTP delivery")
+	flag.BoolVar(&cfg.MFASMSEnabled, "mfa-sms-enabled", getEnvBool("MFA_SMS_ENABLED", false), "Enable SMS OTP delivery")
+
 	flag.Parse()
 
 	return cfg
@@ -80,6 +87,15 @@ func getEnvDuration(key string, fallback time.Duration) time.Duration {
 	if value, ok := os.LookupEnv(key); ok {
 		if d, err := time.ParseDuration(value); err == nil {
 			return d
+		}
+	}
+	return fallback
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	if value, ok := os.LookupEnv(key); ok {
+		if b, err := strconv.ParseBool(value); err == nil {
+			return b
 		}
 	}
 	return fallback

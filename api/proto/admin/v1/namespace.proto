@@ -94,6 +94,7 @@ message UpdateNamespaceConfigRequest {
 message ListNamespacesRequest {
   int32 page_size = 1;
   int32 page = 2;
+  string query = 3; // partial match on namespace name
 }
 
 message ListNamespacesResponse {

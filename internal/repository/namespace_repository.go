@@ -16,7 +16,7 @@ type NamespaceRepository interface {
 	Create(ctx context.Context, ns *domain.Namespace) error
 	GetByID(ctx context.Context, id string) (*domain.Namespace, error)
 	GetByName(ctx context.Context, name string) (*domain.Namespace, error)
-	List(ctx context.Context, offset, limit int) ([]*domain.Namespace, int64, error)
+	List(ctx context.Context, query string, offset, limit int) ([]*domain.Namespace, int64, error)
 	Update(ctx context.Context, ns *domain.Namespace) error
 	Delete(ctx context.Context, id string) error
 }
@@ -68,8 +68,13 @@ func (r *mongoNamespaceRepository) GetByName(ctx context.Context, name string) (
 	return ns, nil
 }
 
-func (r *mongoNamespaceRepository) List(ctx context.Context, offset, limit int) ([]*domain.Namespace, int64, error) {
-	filter := gmqb.NewFilter()
+func (r *mongoNamespaceRepository) List(ctx context.Context, query string, offset, limit int) ([]*domain.Namespace, int64, error) {
+	var filter gmqb.Filter
+	if query != "" {
+		filter = gmqb.Regex(r.f("Name"), query, "i")
+	} else {
+		filter = gmqb.NewFilter()
+	}
 
 	pipeline := gmqb.NewPipeline().
 		Match(filter).

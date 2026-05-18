@@ -289,6 +289,36 @@
             "required": false,
             "type": "integer",
             "format": "int32"
+          },
+          {
+            "name": "event",
+            "description": "filter by event type",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "userId",
+            "description": "filter by user ID",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "from",
+            "description": "start of time range",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "name": "to",
+            "description": "end of time range",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
           }
         ],
         "tags": [
@@ -327,6 +357,13 @@
             "required": false,
             "type": "integer",
             "format": "int32"
+          },
+          {
+            "name": "query",
+            "description": "partial match on namespace name",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -499,6 +536,13 @@
             "required": false,
             "type": "integer",
             "format": "int32"
+          },
+          {
+            "name": "query",
+            "description": "partial match on client_id or name",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -922,6 +966,14 @@
           },
           {
             "name": "query",
+            "description": "partial match on username or email",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status",
+            "description": "filter by user status (e.g. \"active\", \"suspended\")",
             "in": "query",
             "required": false,
             "type": "string"

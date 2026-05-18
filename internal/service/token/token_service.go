@@ -12,19 +12,21 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/squall-chua/go-grpc-auth/internal/domain"
 	"github.com/squall-chua/go-grpc-auth/internal/repository"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 type TokenService interface {
-	GenerateTokenPair(ctx context.Context, user *domain.User) (*domain.TokenPair, error)
+	GenerateTokenPair(ctx context.Context, user *domain.User, audience string, scopes []string) (*domain.TokenPair, error)
 	ValidateAccessToken(ctx context.Context, token string) (*domain.Principal, error)
 	RefreshToken(ctx context.Context, refreshToken string) (*domain.TokenPair, error)
 	RevokeTokens(ctx context.Context, accessToken, refreshToken string) error
 	RevokeAllForUser(ctx context.Context, userID string) error
-	GenerateIDToken(ctx context.Context, user *domain.User, nonce string) (string, error)
-	GenerateClientToken(ctx context.Context, client *domain.OIDCClient) (*domain.TokenPair, error)
+	GenerateIDToken(ctx context.Context, user *domain.User, audience, nonce string) (string, error)
+	GenerateClientToken(ctx context.Context, client *domain.OIDCClient, scopes []string) (*domain.TokenPair, error)
 }
 
 type tokenService struct {
+	mongoClient          *mongo.Client
 	tokenRepo            repository.TokenRepository
 	userRepo             repository.UserRepository
 	clientRepo           repository.ClientRepository
@@ -36,6 +38,7 @@ type tokenService struct {
 }
 
 func NewTokenService(
+	mongoClient *mongo.Client,
 	tokenRepo repository.TokenRepository,
 	userRepo repository.UserRepository,
 	clientRepo repository.ClientRepository,
@@ -44,6 +47,7 @@ func NewTokenService(
 	accessTokenDuration, refreshTokenDuration time.Duration,
 ) TokenService {
 	return &tokenService{
+		mongoClient:          mongoClient,
 		tokenRepo:            tokenRepo,
 		userRepo:             userRepo,
 		clientRepo:           clientRepo,
@@ -55,7 +59,7 @@ func NewTokenService(
 	}
 }
 
-func (s *tokenService) GenerateTokenPair(ctx context.Context, user *domain.User) (*domain.TokenPair, error) {
+func (s *tokenService) GenerateTokenPair(ctx context.Context, user *domain.User, audience string, scopes []string) (*domain.TokenPair, error) {
 	accessToken, accessHash, err := s.generateOpaqueToken()
 	if err != nil {
 		return nil, err
@@ -73,7 +77,9 @@ func (s *tokenService) GenerateTokenPair(ctx context.Context, user *domain.User)
 		TokenHash: accessHash,
 		UserID:    user.ID.Hex(),
 		Namespace: user.Namespace,
-		Type:      "access",
+		Type:      domain.TokenTypeAccess,
+		Audience:  audience,
+		Scopes:    scopes,
 		ExpiresAt: accessExp,
 	})
 	if err != nil {
@@ -84,14 +90,20 @@ func (s *tokenService) GenerateTokenPair(ctx context.Context, user *domain.User)
 		TokenHash: refreshHash,
 		UserID:    user.ID.Hex(),
 		Namespace: user.Namespace,
-		Type:      "refresh",
+		Type:      domain.TokenTypeRefresh,
+		Audience:  audience,
+		Scopes:    scopes,
 		ExpiresAt: refreshExp,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	idToken, err := s.GenerateIDToken(ctx, user, "")
+	aud := audience
+	if aud == "" {
+		aud = s.issuer
+	}
+	idToken, err := s.GenerateIDToken(ctx, user, aud, "")
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +123,7 @@ func (s *tokenService) ValidateAccessToken(ctx context.Context, token string) (*
 		return nil, fmt.Errorf("invalid token: %w", err)
 	}
 
-	if t.Type != "access" || t.ExpiresAt.Before(time.Now().UTC()) {
+	if t.Type != domain.TokenTypeAccess || t.ExpiresAt.Before(time.Now().UTC()) {
 		return nil, fmt.Errorf("token expired or invalid type")
 	}
 
@@ -149,7 +161,7 @@ func (s *tokenService) RefreshToken(ctx context.Context, refreshToken string) (*
 		return nil, fmt.Errorf("invalid refresh token: %w", err)
 	}
 
-	if t.Type != "refresh" || t.ExpiresAt.Before(time.Now().UTC()) {
+	if t.Type != domain.TokenTypeRefresh || t.ExpiresAt.Before(time.Now().UTC()) {
 		return nil, fmt.Errorf("refresh token expired or invalid type")
 	}
 
@@ -158,27 +170,57 @@ func (s *tokenService) RefreshToken(ctx context.Context, refreshToken string) (*
 		return nil, fmt.Errorf("failed to get user for refresh: %w", err)
 	}
 
-	// Revoke old refresh token
-	_ = s.tokenRepo.DeleteByHash(ctx, hash)
+	session, err := s.mongoClient.StartSession()
+	if err != nil {
+		return nil, fmt.Errorf("failed to start session: %w", err)
+	}
+	defer session.EndSession(ctx)
 
-	return s.GenerateTokenPair(ctx, user)
+	var pair *domain.TokenPair
+	_, err = session.WithTransaction(ctx, func(sc context.Context) (interface{}, error) {
+		if err := s.tokenRepo.DeleteByHash(sc, hash); err != nil {
+			return nil, fmt.Errorf("failed to revoke refresh token: %w", err)
+		}
+
+		var txErr error
+		pair, txErr = s.GenerateTokenPair(sc, user, t.Audience, t.Scopes)
+		return nil, txErr
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return pair, nil
 }
 
 func (s *tokenService) RevokeTokens(ctx context.Context, accessToken, refreshToken string) error {
-	if accessToken != "" {
-		_ = s.tokenRepo.DeleteByHash(ctx, s.hashToken(accessToken))
+	session, err := s.mongoClient.StartSession()
+	if err != nil {
+		return fmt.Errorf("failed to start session: %w", err)
 	}
-	if refreshToken != "" {
-		_ = s.tokenRepo.DeleteByHash(ctx, s.hashToken(refreshToken))
-	}
-	return nil
+	defer session.EndSession(ctx)
+
+	_, err = session.WithTransaction(ctx, func(sc context.Context) (interface{}, error) {
+		if accessToken != "" {
+			if err := s.tokenRepo.DeleteByHash(sc, s.hashToken(accessToken)); err != nil {
+				return nil, err
+			}
+		}
+		if refreshToken != "" {
+			if err := s.tokenRepo.DeleteByHash(sc, s.hashToken(refreshToken)); err != nil {
+				return nil, err
+			}
+		}
+		return nil, nil
+	})
+	return err
 }
 
 func (s *tokenService) RevokeAllForUser(ctx context.Context, userID string) error {
 	return s.tokenRepo.DeleteByUserID(ctx, userID)
 }
 
-func (s *tokenService) GenerateIDToken(ctx context.Context, user *domain.User, nonce string) (string, error) {
+func (s *tokenService) GenerateIDToken(ctx context.Context, user *domain.User, audience, nonce string) (string, error) {
 	if s.privateKey == nil {
 		return "", fmt.Errorf("OIDC not configured: private key missing")
 	}
@@ -187,8 +229,8 @@ func (s *tokenService) GenerateIDToken(ctx context.Context, user *domain.User, n
 	claims := jwt.MapClaims{
 		"iss":       s.issuer,
 		"sub":       user.ID,
-		"aud":       "auth-service", // Default audience, should be client_id in real OIDC
-		"exp":       now.Add(1 * time.Hour).Unix(),
+		"aud":       audience,
+		"exp":       now.Add(s.accessTokenDuration).Unix(),
 		"iat":       now.Unix(),
 		"namespace": user.Namespace,
 		"email":     user.Email,
@@ -206,7 +248,7 @@ func (s *tokenService) GenerateIDToken(ctx context.Context, user *domain.User, n
 	return token.SignedString(s.privateKey)
 }
 
-func (s *tokenService) GenerateClientToken(ctx context.Context, client *domain.OIDCClient) (*domain.TokenPair, error) {
+func (s *tokenService) GenerateClientToken(ctx context.Context, client *domain.OIDCClient, scopes []string) (*domain.TokenPair, error) {
 	accessToken, accessHash, err := s.generateOpaqueToken()
 	if err != nil {
 		return nil, err
@@ -218,7 +260,8 @@ func (s *tokenService) GenerateClientToken(ctx context.Context, client *domain.O
 		TokenHash: accessHash,
 		UserID:    client.ClientID,
 		Namespace: client.Namespace,
-		Type:      "access",
+		Type:      domain.TokenTypeAccess,
+		Scopes:    scopes,
 		ExpiresAt: accessExp,
 	})
 	if err != nil {

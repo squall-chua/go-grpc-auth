@@ -5,6 +5,7 @@ import (
 
 	"github.com/squall-chua/go-grpc-auth/api/v1/admin"
 	"github.com/squall-chua/go-grpc-auth/internal/domain"
+	"github.com/squall-chua/go-grpc-auth/internal/repository"
 	adminservice "github.com/squall-chua/go-grpc-auth/internal/service/admin"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -53,17 +54,13 @@ func (s *oidcClientGRPCServer) GetClient(ctx context.Context, req *admin.GetClie
 }
 
 func (s *oidcClientGRPCServer) UpdateClient(ctx context.Context, req *admin.UpdateClientRequest) (*admin.OIDCClient, error) {
-	client, err := s.service.GetClient(ctx, req.ClientId)
+	client, err := s.service.UpdateClient(ctx, req.ClientId, repository.ClientUpdateFields{
+		Name:          req.Name,
+		RedirectURIs:  req.RedirectUris,
+		AllowedScopes: req.AllowedScopes,
+		SkipConsent:   req.SkipConsent,
+	})
 	if err != nil {
-		return nil, err
-	}
-
-	client.Name = req.Name
-	client.RedirectURIs = req.RedirectUris
-	client.AllowedScopes = req.AllowedScopes
-	client.SkipConsent = req.SkipConsent
-
-	if err := s.service.UpdateClient(ctx, client); err != nil {
 		return nil, err
 	}
 
@@ -94,7 +91,7 @@ func (s *oidcClientGRPCServer) ListClients(ctx context.Context, req *admin.ListC
 		pageSize = 10
 	}
 
-	clients, total, err := s.service.ListClients(ctx, req.Namespace, page, pageSize)
+	clients, total, err := s.service.ListClients(ctx, req.Namespace, req.Query, page, pageSize)
 	if err != nil {
 		return nil, err
 	}

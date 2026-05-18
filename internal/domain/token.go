@@ -6,12 +6,20 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
+type TokenType string
+
+const (
+	TokenTypeAccess  TokenType = "access"
+	TokenTypeRefresh TokenType = "refresh"
+)
+
 type Token struct {
 	ID        bson.ObjectID `bson:"_id,omitempty"`
 	TokenHash string        `bson:"token_hash"`
 	UserID    string        `bson:"user_id"`
 	Namespace string        `bson:"namespace"`
-	Type      string        `bson:"type"` // access, refresh
+	Type      TokenType     `bson:"type"`
+	Audience  string        `bson:"audience"`
 	Scopes    []string      `bson:"scopes"`
 	ExpiresAt time.Time     `bson:"expires_at"`
 	CreatedAt time.Time     `bson:"created_at"`

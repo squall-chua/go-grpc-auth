@@ -59,7 +59,7 @@ func (s *socialAuthService) HandleCallback(ctx context.Context, provider domain.
 	}
 
 	// Find or create user
-	user, err := s.userRepo.GetByEmail(ctx, socialUser.Email, namespace)
+	user, err := s.userRepo.GetByEmail(ctx, namespace, socialUser.Email)
 	if err != nil {
 		// Auto-provision user
 		user = &domain.User{
@@ -67,7 +67,7 @@ func (s *socialAuthService) HandleCallback(ctx context.Context, provider domain.
 			Email:     socialUser.Email,
 			Username:  socialUser.Email, // Default to email
 			Namespace: namespace,
-			Status:    "active",
+			Status:    domain.UserStatusActive,
 			CreatedAt: time.Now().UTC(),
 			UpdatedAt: time.Now().UTC(),
 			SocialIdentities: []domain.SocialIdentity{
@@ -107,7 +107,7 @@ func (s *socialAuthService) HandleCallback(ctx context.Context, provider domain.
 	}
 
 	// Issue tokens
-	pair, err := s.tokenSvc.GenerateTokenPair(ctx, user)
+	pair, err := s.tokenSvc.GenerateTokenPair(ctx, user, "", nil)
 	if err != nil {
 		return nil, err
 	}

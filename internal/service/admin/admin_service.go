@@ -12,9 +12,9 @@ import (
 )
 
 type AdminService interface {
-	ListUsers(ctx context.Context, namespace string, page, pageSize int) ([]*domain.User, int64, error)
+	ListUsers(ctx context.Context, namespace, query, status string, page, pageSize int) ([]*domain.User, int64, error)
 	GetUser(ctx context.Context, id string) (*domain.User, error)
-	UpdateUserStatus(ctx context.Context, id, status string) error
+	UpdateUserStatus(ctx context.Context, id string, status domain.UserStatus) error
 	ResetUserPassword(ctx context.Context, id, newPassword string) error
 	GrantRoles(ctx context.Context, id string, roles []string) error
 	RevokeRoles(ctx context.Context, id string, roles []string) error
@@ -32,7 +32,7 @@ type AdminService interface {
 	DeletePermission(ctx context.Context, id string) error
 
 	// Audit Logs
-	ListAuditLogs(ctx context.Context, namespace string, page, pageSize int) ([]*domain.AuditLog, int64, error)
+	ListAuditLogs(ctx context.Context, filter audit.AuditListFilter, page, pageSize int) ([]*domain.AuditLog, int64, error)
 }
 
 type adminService struct {
@@ -59,9 +59,12 @@ func NewAdminService(
 	}
 }
 
-func (s *adminService) ListUsers(ctx context.Context, namespace string, page, pageSize int) ([]*domain.User, int64, error) {
+func (s *adminService) ListUsers(ctx context.Context, namespace, query, status string, page, pageSize int) ([]*domain.User, int64, error) {
 	offset := (page - 1) * pageSize
-	return s.userRepo.List(ctx, namespace, offset, pageSize)
+	return s.userRepo.List(ctx, namespace, offset, pageSize, repository.UserListFilter{
+		Query:  query,
+		Status: status,
+	})
 }
 
 func (s *adminService) GetUser(ctx context.Context, id string) (*domain.User, error) {
@@ -72,112 +75,32 @@ func (s *adminService) GetUser(ctx context.Context, id string) (*domain.User, er
 	return user, nil
 }
 
-func (s *adminService) UpdateUserStatus(ctx context.Context, id, userStatus string) error {
-	user, err := s.userRepo.GetByID(ctx, id)
-	if err != nil {
-		return status.Error(codes.NotFound, "user not found")
-	}
-
-	user.Status = userStatus
-	return s.userRepo.Update(ctx, user)
+func (s *adminService) UpdateUserStatus(ctx context.Context, id string, userStatus domain.UserStatus) error {
+	return s.userRepo.UpdateStatus(ctx, id, userStatus)
 }
 
 func (s *adminService) ResetUserPassword(ctx context.Context, id, newPassword string) error {
-	user, err := s.userRepo.GetByID(ctx, id)
-	if err != nil {
-		return status.Error(codes.NotFound, "user not found")
-	}
-
 	hashed, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return status.Error(codes.Internal, "failed to hash password")
 	}
-
-	user.PasswordHash = string(hashed)
-	return s.userRepo.Update(ctx, user)
+	return s.userRepo.UpdatePassword(ctx, id, string(hashed), 0)
 }
 
 func (s *adminService) GrantRoles(ctx context.Context, id string, roles []string) error {
-	user, err := s.userRepo.GetByID(ctx, id)
-	if err != nil {
-		return status.Error(codes.NotFound, "user not found")
-	}
-
-	// Add roles if not already present
-	roleMap := make(map[string]bool)
-	for _, r := range user.Roles {
-		roleMap[r] = true
-	}
-	for _, r := range roles {
-		if !roleMap[r] {
-			user.Roles = append(user.Roles, r)
-		}
-	}
-
-	return s.userRepo.Update(ctx, user)
+	return s.userRepo.AddRoles(ctx, id, roles)
 }
 
 func (s *adminService) RevokeRoles(ctx context.Context, id string, roles []string) error {
-	user, err := s.userRepo.GetByID(ctx, id)
-	if err != nil {
-		return status.Error(codes.NotFound, "user not found")
-	}
-
-	revokeMap := make(map[string]bool)
-	for _, r := range roles {
-		revokeMap[r] = true
-	}
-
-	var newRoles []string
-	for _, r := range user.Roles {
-		if !revokeMap[r] {
-			newRoles = append(newRoles, r)
-		}
-	}
-	user.Roles = newRoles
-
-	return s.userRepo.Update(ctx, user)
+	return s.userRepo.RemoveRoles(ctx, id, roles)
 }
 
 func (s *adminService) GrantPermissions(ctx context.Context, id string, permissions []string) error {
-	user, err := s.userRepo.GetByID(ctx, id)
-	if err != nil {
-		return status.Error(codes.NotFound, "user not found")
-	}
-
-	permMap := make(map[string]bool)
-	for _, p := range user.Permissions {
-		permMap[p] = true
-	}
-	for _, p := range permissions {
-		if !permMap[p] {
-			user.Permissions = append(user.Permissions, p)
-		}
-	}
-
-	return s.userRepo.Update(ctx, user)
+	return s.userRepo.AddPermissions(ctx, id, permissions)
 }
 
 func (s *adminService) RevokePermissions(ctx context.Context, id string, permissions []string) error {
-	user, err := s.userRepo.GetByID(ctx, id)
-	if err != nil {
-		return status.Error(codes.NotFound, "user not found")
-	}
-
-	revokeMap := make(map[string]bool)
-	for _, p := range permissions {
-		revokeMap[p] = true
-	}
-
-	var newPerms []string
-	for _, p := range user.Permissions {
-		if !revokeMap[p] {
-			newPerms = append(newPerms, p)
-		}
-	}
-	user.Permissions = newPerms
-
-	return s.userRepo.Update(ctx, user)
+	return s.userRepo.RemovePermissions(ctx, id, permissions)
 }
 
 func (s *adminService) CreateRole(ctx context.Context, role *domain.Role) error {
@@ -206,7 +129,6 @@ func (s *adminService) DeletePermission(ctx context.Context, id string) error {
 	return s.permRepo.Delete(ctx, id)
 }
 
-func (s *adminService) ListAuditLogs(ctx context.Context, namespace string, page, pageSize int) ([]*domain.AuditLog, int64, error) {
-	offset := (page - 1) * pageSize
-	return s.auditService.List(ctx, namespace, offset, pageSize)
+func (s *adminService) ListAuditLogs(ctx context.Context, filter audit.AuditListFilter, page, pageSize int) ([]*domain.AuditLog, int64, error) {
+	return s.auditService.List(ctx, filter, page, pageSize)
 }

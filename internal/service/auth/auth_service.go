@@ -29,6 +29,7 @@ type AuthService interface {
 }
 
 type authService struct {
+	issuer       string
 	userRepo     repository.UserRepository
 	tokenService token.TokenService
 	nsRepo       repository.NamespaceRepository
@@ -39,6 +40,7 @@ type authService struct {
 }
 
 func NewAuthService(
+	issuer string,
 	userRepo repository.UserRepository,
 	tokenService token.TokenService,
 	nsRepo repository.NamespaceRepository,
@@ -48,6 +50,7 @@ func NewAuthService(
 	webhookSvc webhook.WebhookService,
 ) AuthService {
 	return &authService{
+		issuer:       issuer,
 		userRepo:     userRepo,
 		tokenService: tokenService,
 		nsRepo:       nsRepo,
@@ -103,7 +106,7 @@ func (s *authService) Register(ctx context.Context, email, username, password, n
 		Username:        username,
 		PasswordHash:    string(hash),
 		Namespace:       namespace,
-		Status:          "active",
+		Status:          domain.UserStatusActive,
 		Roles:           []string{"user"},
 		PasswordHistory: []string{string(hash)},
 	}
@@ -116,8 +119,7 @@ func (s *authService) Register(ctx context.Context, email, username, password, n
 	s.webhookSvc.Notify(ctx, namespace, domain.EventRegisterSuccess, map[string]string{"user_id": user.ID.Hex(), "username": user.Username})
 
 	// Check if MFA is required for this namespace
-	ns, err = s.nsRepo.GetByName(ctx, namespace)
-	if err == nil && ns.Config.MFARequired {
+	if ns.Config.MFARequired {
 		mfaToken, err := s.mfaService.CreateMFAToken(ctx, user.ID.Hex(), namespace, domain.MFAMethodTOTP)
 		if err != nil {
 			return nil, status.Error(codes.Internal, "failed to create MFA token")
@@ -129,7 +131,7 @@ func (s *authService) Register(ctx context.Context, email, username, password, n
 		}, nil
 	}
 
-	return s.tokenService.GenerateTokenPair(ctx, user)
+	return s.tokenService.GenerateTokenPair(ctx, user, "", nil)
 }
 
 func (s *authService) Login(ctx context.Context, login, password, namespace string) (*domain.TokenPair, error) {
@@ -159,7 +161,7 @@ func (s *authService) Login(ctx context.Context, login, password, namespace stri
 		}
 	}
 
-	if user.Status != "active" {
+	if user.Status != domain.UserStatusActive {
 		s.auditService.Log(ctx, domain.EventLoginFailed, user.ID.Hex(), namespace, ip, ua, map[string]string{"reason": "user_not_active"})
 		return nil, status.Error(codes.PermissionDenied, "user is not active")
 	}
@@ -191,7 +193,7 @@ func (s *authService) Login(ctx context.Context, login, password, namespace stri
 	}
 
 	s.auditService.Log(ctx, domain.EventLoginSuccess, user.ID.Hex(), namespace, ip, ua, nil)
-	return s.tokenService.GenerateTokenPair(ctx, user)
+	return s.tokenService.GenerateTokenPair(ctx, user, "", nil)
 }
 
 func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (*domain.TokenPair, error) {
@@ -230,16 +232,12 @@ func (s *authService) ChangePassword(ctx context.Context, userID, currentPasswor
 		return status.Error(codes.Internal, "failed to hash password")
 	}
 
-	user.PasswordHash = string(hash)
-	user.PasswordHistory = append(user.PasswordHistory, string(hash))
-	// Keep only the last N
-	if err == nil && ns.Config.PasswordPolicy.PasswordHistory > 0 {
-		if len(user.PasswordHistory) > ns.Config.PasswordPolicy.PasswordHistory {
-			user.PasswordHistory = user.PasswordHistory[len(user.PasswordHistory)-ns.Config.PasswordPolicy.PasswordHistory:]
-		}
+	maxHistory := 0
+	if err == nil {
+		maxHistory = ns.Config.PasswordPolicy.PasswordHistory
 	}
 
-	if err := s.userRepo.Update(ctx, user); err != nil {
+	if err := s.userRepo.UpdatePassword(ctx, userID, string(hash), maxHistory); err != nil {
 		return status.Error(codes.Internal, "failed to update password")
 	}
 
@@ -261,7 +259,21 @@ func (s *authService) InitiateMFA(ctx context.Context, mfaTokenStr, method strin
 		return "", "", status.Error(codes.NotFound, "user not found")
 	}
 
-	return s.mfaService.InitiateTOTP(ctx, user.ID.Hex(), "GoGrpcAuth", user.Email)
+	switch domain.MFAMethod(method) {
+	case domain.MFAMethodEmail:
+		if err := s.mfaService.InitiateEmailOTP(ctx, user.ID.Hex(), user.Email); err != nil {
+			return "", "", status.Errorf(codes.Internal, "failed to initiate email OTP: %v", err)
+		}
+		return "", "", nil
+	case domain.MFAMethodSMS:
+		// Phone number would come from user profile; for now use empty string as placeholder
+		if err := s.mfaService.InitiateSMSOTP(ctx, user.ID.Hex(), ""); err != nil {
+			return "", "", status.Errorf(codes.Internal, "failed to initiate SMS OTP: %v", err)
+		}
+		return "", "", nil
+	default:
+		return s.mfaService.InitiateTOTP(ctx, user.ID.Hex(), s.issuer, user.Email)
+	}
 }
 
 func (s *authService) VerifyMFA(ctx context.Context, mfaTokenStr, code string) (*domain.TokenPair, error) {
@@ -270,7 +282,15 @@ func (s *authService) VerifyMFA(ctx context.Context, mfaTokenStr, code string) (
 		return nil, status.Error(codes.Unauthenticated, "invalid MFA token")
 	}
 
-	valid, err := s.mfaService.VerifyTOTP(ctx, token.UserID, code)
+	var valid bool
+	switch token.Method {
+	case domain.MFAMethodEmail:
+		valid, err = s.mfaService.VerifyEmailOTP(ctx, token.UserID, code)
+	case domain.MFAMethodSMS:
+		valid, err = s.mfaService.VerifySMSOTP(ctx, token.UserID, code)
+	default:
+		valid, err = s.mfaService.VerifyTOTP(ctx, token.UserID, code)
+	}
 	if err != nil || !valid {
 		s.auditService.Log(ctx, domain.EventMFAFailed, token.UserID, token.Namespace, util.GetClientIP(ctx), util.GetUserAgent(ctx), nil)
 		return nil, status.Error(codes.Unauthenticated, "invalid MFA code")
@@ -285,5 +305,5 @@ func (s *authService) VerifyMFA(ctx context.Context, mfaTokenStr, code string) (
 	s.auditService.Log(ctx, domain.EventMFAVerified, user.ID.Hex(), user.Namespace, util.GetClientIP(ctx), util.GetUserAgent(ctx), nil)
 	s.auditService.Log(ctx, domain.EventLoginSuccess, user.ID.Hex(), user.Namespace, util.GetClientIP(ctx), util.GetUserAgent(ctx), map[string]string{"mfa": "verified"})
 
-	return s.tokenService.GenerateTokenPair(ctx, user)
+	return s.tokenService.GenerateTokenPair(ctx, user, "", nil)
 }

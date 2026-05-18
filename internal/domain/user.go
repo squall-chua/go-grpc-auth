@@ -6,12 +6,20 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
+type UserStatus string
+
+const (
+	UserStatusActive   UserStatus = "active"
+	UserStatusInactive UserStatus = "inactive"
+	UserStatusBanned   UserStatus = "banned"
+)
+
 type User struct {
 	ID               bson.ObjectID    `bson:"_id,omitempty"`
 	Email            string           `bson:"email"`
 	Username         string           `bson:"username"`
 	PasswordHash     string           `bson:"password_hash"`
-	Status           string           `bson:"status"` // active, inactive, banned
+	Status           UserStatus       `bson:"status"`
 	Roles            []string         `bson:"roles"`
 	Permissions      []string         `bson:"permissions"`
 	PasswordHistory  []string         `bson:"password_history"`

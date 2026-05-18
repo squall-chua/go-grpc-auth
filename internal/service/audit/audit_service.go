@@ -10,9 +10,17 @@ import (
 	"go.uber.org/zap"
 )
 
+type AuditListFilter struct {
+	Namespace string
+	Event     string
+	UserID    string
+	From      time.Time
+	To        time.Time
+}
+
 type AuditService interface {
 	Log(ctx context.Context, event domain.AuditEvent, userID, namespace, ip, ua string, metadata any)
-	List(ctx context.Context, namespace string, offset, limit int) ([]*domain.AuditLog, int64, error)
+	List(ctx context.Context, filter AuditListFilter, page, pageSize int) ([]*domain.AuditLog, int64, error)
 }
 
 type auditService struct {
@@ -50,10 +58,31 @@ func (s *auditService) Log(ctx context.Context, event domain.AuditEvent, userID,
 	}()
 }
 
-func (s *auditService) List(ctx context.Context, namespace string, offset, limit int) ([]*domain.AuditLog, int64, error) {
-	filter := gmqb.NewFilter()
-	if namespace != "" {
-		filter.Eq(s.f("Namespace"), namespace)
+func (s *auditService) List(ctx context.Context, listFilter AuditListFilter, page, pageSize int) ([]*domain.AuditLog, int64, error) {
+	conditions := []gmqb.Filter{}
+	if listFilter.Namespace != "" {
+		conditions = append(conditions, gmqb.Eq(s.f("Namespace"), listFilter.Namespace))
 	}
-	return s.repo.List(ctx, filter, offset, limit)
+	if listFilter.Event != "" {
+		conditions = append(conditions, gmqb.Eq(s.f("Event"), listFilter.Event))
+	}
+	if listFilter.UserID != "" {
+		conditions = append(conditions, gmqb.Eq(s.f("UserID"), listFilter.UserID))
+	}
+	if !listFilter.From.IsZero() {
+		conditions = append(conditions, gmqb.Gte(s.f("Timestamp"), listFilter.From))
+	}
+	if !listFilter.To.IsZero() {
+		conditions = append(conditions, gmqb.Lt(s.f("Timestamp"), listFilter.To))
+	}
+
+	var filter gmqb.Filter
+	if len(conditions) > 0 {
+		filter = gmqb.And(conditions...)
+	} else {
+		filter = gmqb.NewFilter()
+	}
+
+	offset := (page - 1) * pageSize
+	return s.repo.List(ctx, filter, offset, pageSize)
 }

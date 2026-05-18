@@ -12,7 +12,7 @@ import (
 type NamespaceService interface {
 	CreateNamespace(ctx context.Context, ns *domain.Namespace) (*domain.Namespace, error)
 	GetNamespace(ctx context.Context, id string) (*domain.Namespace, error)
-	ListNamespaces(ctx context.Context, page, pageSize int) ([]*domain.Namespace, int64, error)
+	ListNamespaces(ctx context.Context, query string, page, pageSize int) ([]*domain.Namespace, int64, error)
 	UpdateNamespace(ctx context.Context, ns *domain.Namespace) error
 	DeleteNamespace(ctx context.Context, id string) error
 }
@@ -42,9 +42,9 @@ func (s *namespaceService) GetNamespace(ctx context.Context, id string) (*domain
 	return ns, nil
 }
 
-func (s *namespaceService) ListNamespaces(ctx context.Context, page, pageSize int) ([]*domain.Namespace, int64, error) {
+func (s *namespaceService) ListNamespaces(ctx context.Context, query string, page, pageSize int) ([]*domain.Namespace, int64, error) {
 	offset := (page - 1) * pageSize
-	return s.nsRepo.List(ctx, offset, pageSize)
+	return s.nsRepo.List(ctx, query, offset, pageSize)
 }
 
 func (s *namespaceService) UpdateNamespace(ctx context.Context, ns *domain.Namespace) error {

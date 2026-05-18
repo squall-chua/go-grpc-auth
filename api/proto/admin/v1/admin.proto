@@ -197,7 +197,8 @@ message ListUsersRequest {
   int32 page_size = 1;
   int32 page = 2;
   string namespace = 3;
-  string query = 4;
+  string query = 4; // partial match on username or email
+  string status = 5; // filter by user status (e.g. "active", "suspended")
 }
 
 message ListUsersResponse {
@@ -269,11 +270,14 @@ message DeleteRoleRequest {
   string id = 1;
 }
 
-
 message ListAuditLogsRequest {
   string namespace = 1;
   int32 page_size = 2;
   int32 page = 3;
+  string event = 4; // filter by event type
+  string user_id = 5; // filter by user ID
+  google.protobuf.Timestamp from = 6; // start of time range
+  google.protobuf.Timestamp to = 7; // end of time range
 }
 
 message ListAuditLogsResponse {

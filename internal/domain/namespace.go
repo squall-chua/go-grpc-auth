@@ -14,6 +14,8 @@ type NamespaceConfig struct {
 	PasswordPolicy         PasswordPolicy `bson:"password_policy"`
 	IPAllowlist            []string       `bson:"ip_allowlist"`
 	IPDenylist             []string       `bson:"ip_denylist"`
+	WebhookURL             string         `bson:"webhook_url"`
+	WebhookSecret          string         `bson:"webhook_secret"`
 }
 
 type PasswordPolicy struct {

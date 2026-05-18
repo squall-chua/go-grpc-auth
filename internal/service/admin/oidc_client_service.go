@@ -15,9 +15,9 @@ import (
 type OIDCClientService interface {
 	RegisterClient(ctx context.Context, client *domain.OIDCClient) (string, error) // returns plain secret
 	GetClient(ctx context.Context, clientID string) (*domain.OIDCClient, error)
-	UpdateClient(ctx context.Context, client *domain.OIDCClient) error
+	UpdateClient(ctx context.Context, clientID string, fields repository.ClientUpdateFields) (*domain.OIDCClient, error)
 	DeleteClient(ctx context.Context, clientID string) error
-	ListClients(ctx context.Context, namespace string, page, pageSize int) ([]*domain.OIDCClient, int64, error)
+	ListClients(ctx context.Context, namespace, query string, page, pageSize int) ([]*domain.OIDCClient, int64, error)
 	RotateSecret(ctx context.Context, clientID string) (string, error)
 }
 
@@ -57,26 +57,20 @@ func (s *oidcClientService) GetClient(ctx context.Context, clientID string) (*do
 	return s.repo.GetByID(ctx, clientID)
 }
 
-func (s *oidcClientService) UpdateClient(ctx context.Context, client *domain.OIDCClient) error {
-	client.UpdatedAt = time.Now().UTC()
-	return s.repo.Update(ctx, client)
+func (s *oidcClientService) UpdateClient(ctx context.Context, clientID string, fields repository.ClientUpdateFields) (*domain.OIDCClient, error) {
+	return s.repo.Update(ctx, clientID, fields)
 }
 
 func (s *oidcClientService) DeleteClient(ctx context.Context, clientID string) error {
 	return s.repo.Delete(ctx, clientID)
 }
 
-func (s *oidcClientService) ListClients(ctx context.Context, namespace string, page, pageSize int) ([]*domain.OIDCClient, int64, error) {
+func (s *oidcClientService) ListClients(ctx context.Context, namespace, query string, page, pageSize int) ([]*domain.OIDCClient, int64, error) {
 	offset := (page - 1) * pageSize
-	return s.repo.List(ctx, namespace, offset, pageSize)
+	return s.repo.List(ctx, namespace, query, offset, pageSize)
 }
 
 func (s *oidcClientService) RotateSecret(ctx context.Context, clientID string) (string, error) {
-	client, err := s.repo.GetByID(ctx, clientID)
-	if err != nil {
-		return "", err
-	}
-
 	secret, err := generateRandomString(32)
 	if err != nil {
 		return "", err
@@ -87,10 +81,7 @@ func (s *oidcClientService) RotateSecret(ctx context.Context, clientID string) (
 		return "", err
 	}
 
-	client.ClientSecret = string(hashed)
-	client.UpdatedAt = time.Now().UTC()
-
-	if err := s.repo.Update(ctx, client); err != nil {
+	if err := s.repo.UpdateSecret(ctx, clientID, string(hashed)); err != nil {
 		return "", err
 	}
 

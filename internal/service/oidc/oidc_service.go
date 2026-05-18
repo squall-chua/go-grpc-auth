@@ -245,8 +245,8 @@ func (s *oidcService) handleAuthorizationCode(ctx context.Context, req *auth.Tok
 		return nil, status.Error(codes.Internal, "user not found")
 	}
 
-	// 5. Generate Tokens
-	pair, err := s.tokenService.GenerateTokenPair(ctx, user)
+	// 5. Generate Tokens with scopes from authorization code
+	pair, err := s.tokenService.GenerateTokenPair(ctx, user, ac.ClientID, ac.Scopes)
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +270,7 @@ func (s *oidcService) handleClientCredentials(ctx context.Context, req *auth.Tok
 		return nil, status.Error(codes.Unauthenticated, "invalid client credentials")
 	}
 
-	pair, err := s.tokenService.GenerateClientToken(ctx, client)
+	pair, err := s.tokenService.GenerateClientToken(ctx, client, client.AllowedScopes)
 	if err != nil {
 		return nil, err
 	}

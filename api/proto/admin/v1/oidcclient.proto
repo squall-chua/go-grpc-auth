@@ -105,6 +105,7 @@ message ListClientsRequest {
   string namespace = 1;
   int32 page_size = 2;
   int32 page = 3;
+  string query = 4; // partial match on client_id or name
 }
 
 message ListClientsResponse {
