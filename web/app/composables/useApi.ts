@@ -16,8 +16,10 @@ export const useApi = () => {
     },
     async onResponseError({ response }) {
       if (response.status === 401) {
-        auth.logout()
-        navigateTo('/login')
+        const refreshed = await auth.tryRefresh()
+        if (!refreshed) {
+          auth.logout()
+        }
       }
     }
   })

@@ -50,6 +50,18 @@ func (r *mongoUserRepository) Create(ctx context.Context, user *domain.User) err
 	if user.ID == bson.NilObjectID {
 		user.ID = bson.NewObjectID()
 	}
+	if user.Roles == nil {
+		user.Roles = []string{}
+	}
+	if user.Permissions == nil {
+		user.Permissions = []string{}
+	}
+	if user.PasswordHistory == nil {
+		user.PasswordHistory = []string{}
+	}
+	if user.SocialIdentities == nil {
+		user.SocialIdentities = []domain.SocialIdentity{}
+	}
 	user.CreatedAt = time.Now().UTC()
 	user.UpdatedAt = time.Now().UTC()
 	_, err := r.collection.InsertOne(ctx, user)
@@ -145,23 +157,39 @@ func (r *mongoUserRepository) UpdatePassword(ctx context.Context, id, passwordHa
 func intPtr(n int) *int { return &n }
 
 func (r *mongoUserRepository) AddRoles(ctx context.Context, id string, roles []string) error {
-	values := toAnySlice(roles)
-	return r.updateFieldByID(ctx, id, gmqb.NewUpdate().AddToSetEach(r.f("Roles"), values...))
+	if err := r.ensureArrayField(ctx, id, r.f("Roles")); err != nil {
+		return err
+	}
+	return r.updateFieldByID(ctx, id, gmqb.NewUpdate().AddToSetEach(r.f("Roles"), toAnySlice(roles)...))
 }
 
 func (r *mongoUserRepository) RemoveRoles(ctx context.Context, id string, roles []string) error {
-	values := toAnySlice(roles)
-	return r.updateFieldByID(ctx, id, gmqb.NewUpdate().PullAll(r.f("Roles"), values...))
+	return r.updateFieldByID(ctx, id, gmqb.NewUpdate().PullAll(r.f("Roles"), toAnySlice(roles)...))
 }
 
 func (r *mongoUserRepository) AddPermissions(ctx context.Context, id string, permissions []string) error {
-	values := toAnySlice(permissions)
-	return r.updateFieldByID(ctx, id, gmqb.NewUpdate().AddToSetEach(r.f("Permissions"), values...))
+	if err := r.ensureArrayField(ctx, id, r.f("Permissions")); err != nil {
+		return err
+	}
+	return r.updateFieldByID(ctx, id, gmqb.NewUpdate().AddToSetEach(r.f("Permissions"), toAnySlice(permissions)...))
 }
 
 func (r *mongoUserRepository) RemovePermissions(ctx context.Context, id string, permissions []string) error {
-	values := toAnySlice(permissions)
-	return r.updateFieldByID(ctx, id, gmqb.NewUpdate().PullAll(r.f("Permissions"), values...))
+	return r.updateFieldByID(ctx, id, gmqb.NewUpdate().PullAll(r.f("Permissions"), toAnySlice(permissions)...))
+}
+
+// ensureArrayField sets a field to [] if it is currently null, so $addToSet works.
+func (r *mongoUserRepository) ensureArrayField(ctx context.Context, id string, field string) error {
+	objID, err := bson.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	}
+	// Only set if field is null (type 10)
+	_, err = r.collection.UpdateOne(ctx,
+		gmqb.And(gmqb.Eq(r.f("ID"), objID), gmqb.Raw(bson.D{{Key: field, Value: bson.D{{Key: "$type", Value: 10}}}})),
+		gmqb.NewUpdate().Set(field, bson.A{}),
+	)
+	return err
 }
 
 func toAnySlice(ss []string) []interface{} {

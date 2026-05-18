@@ -67,7 +67,7 @@ func (r *mongoClientRepository) List(ctx context.Context, namespace, query strin
 	if len(conditions) > 0 {
 		filter = gmqb.And(conditions...)
 	} else {
-		filter = gmqb.NewFilter()
+		filter = gmqb.Raw(bson.D{})
 	}
 
 	pipeline := gmqb.NewPipeline().

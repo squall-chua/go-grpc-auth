@@ -69,12 +69,18 @@ async function handleRegister() {
     }
 
     auth.setTokens(res)
-    // Fetch profile
     const principal = await api.fetch('/v1/auth/validate', {
       method: 'POST',
       body: { token: res.access_token }
     })
-    auth.setUser(principal)
+    auth.setUser({
+      id: principal.user_id,
+      email: form.email,
+      username: form.username,
+      namespace: principal.namespace,
+      roles: principal.roles || [],
+      permissions: principal.permissions || [],
+    })
 
     toast.add({ title: 'Account created!', color: 'green' })
     navigateTo('/dashboard')

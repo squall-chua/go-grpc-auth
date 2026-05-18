@@ -1560,7 +1560,7 @@
       }
     },
     "/v1/auth/validate": {
-      "get": {
+      "post": {
         "summary": "Token Validation (used by interceptors)",
         "operationId": "AuthService_ValidateToken",
         "responses": {
@@ -1579,10 +1579,12 @@
         },
         "parameters": [
           {
-            "name": "token",
-            "in": "query",
-            "required": false,
-            "type": "string"
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ValidateTokenRequest"
+            }
           }
         ],
         "tags": [
@@ -2173,6 +2175,10 @@
         },
         "requireSpecial": {
           "type": "boolean"
+        },
+        "passwordHistory": {
+          "type": "integer",
+          "format": "int32"
         }
       }
     },
@@ -2467,6 +2473,14 @@
         "USER_STATUS_BANNED"
       ],
       "default": "USER_STATUS_UNSPECIFIED"
+    },
+    "v1ValidateTokenRequest": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string"
+        }
+      }
     },
     "v1VerifyMFARequest": {
       "type": "object",

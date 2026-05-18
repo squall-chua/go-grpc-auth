@@ -75,6 +75,7 @@ message PasswordPolicy {
   bool require_lowercase = 3;
   bool require_number = 4;
   bool require_special = 5;
+  int32 password_history = 6;
 }
 
 message CreateNamespaceRequest {

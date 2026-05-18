@@ -5,8 +5,8 @@
         <h1 class="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p class="text-slate-500">Welcome back, {{ auth.user?.username }}</p>
       </div>
-      <div class="text-sm font-mono bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded border border-slate-200 dark:border-slate-700">
-        Namespace: <span class="text-primary-500">{{ auth.user?.namespace }}</span>
+      <div class="text-sm font-heading bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+        Namespace: <span class="text-cta">{{ auth.user?.namespace }}</span>
       </div>
     </header>
 

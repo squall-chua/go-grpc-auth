@@ -30,6 +30,7 @@ type tokenService struct {
 	tokenRepo            repository.TokenRepository
 	userRepo             repository.UserRepository
 	clientRepo           repository.ClientRepository
+	roleRepo             repository.RoleRepository
 	privateKey           *rsa.PrivateKey
 	kid                  string
 	issuer               string
@@ -42,6 +43,7 @@ func NewTokenService(
 	tokenRepo repository.TokenRepository,
 	userRepo repository.UserRepository,
 	clientRepo repository.ClientRepository,
+	roleRepo repository.RoleRepository,
 	privateKey *rsa.PrivateKey,
 	kid, issuer string,
 	accessTokenDuration, refreshTokenDuration time.Duration,
@@ -51,6 +53,7 @@ func NewTokenService(
 		tokenRepo:            tokenRepo,
 		userRepo:             userRepo,
 		clientRepo:           clientRepo,
+		roleRepo:             roleRepo,
 		privateKey:           privateKey,
 		kid:                  kid,
 		issuer:               issuer,
@@ -130,11 +133,12 @@ func (s *tokenService) ValidateAccessToken(ctx context.Context, token string) (*
 	// Try User
 	user, err := s.userRepo.GetByID(ctx, t.UserID)
 	if err == nil {
+		permissions := s.resolvePermissions(ctx, user.Namespace, user.Roles, user.Permissions)
 		return &domain.Principal{
 			UserID:      user.ID.Hex(),
 			Namespace:   user.Namespace,
 			Roles:       user.Roles,
-			Permissions: user.Permissions,
+			Permissions: permissions,
 			ExpiresAt:   t.ExpiresAt.Unix(),
 		}, nil
 	}
@@ -286,4 +290,27 @@ func (s *tokenService) generateOpaqueToken() (string, string, error) {
 func (s *tokenService) hashToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(hash[:])
+}
+
+func (s *tokenService) resolvePermissions(ctx context.Context, namespace string, roles []string, userPermissions []string) []string {
+	seen := make(map[string]bool)
+	for _, p := range userPermissions {
+		seen[p] = true
+	}
+
+	for _, roleName := range roles {
+		role, err := s.roleRepo.GetByName(ctx, namespace, roleName)
+		if err != nil {
+			continue
+		}
+		for _, p := range role.Permissions {
+			seen[p] = true
+		}
+	}
+
+	result := make([]string, 0, len(seen))
+	for p := range seen {
+		result = append(result, p)
+	}
+	return result
 }

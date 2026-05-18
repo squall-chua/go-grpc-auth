@@ -84,30 +84,23 @@ func AuthUnaryInterceptor(authService authservice.AuthService) grpc.UnaryServerI
 			ExpiresAt:   p.ExpiresAt,
 		}
 
-		// 3. Authorization
-		if rule != nil {
-			// Check Roles
-			if len(rule.Roles) > 0 {
-				allowed := false
-				for _, r := range rule.Roles {
-					for _, pr := range principal.Roles {
-						if r == pr {
-							allowed = true
-							break
-						}
-					}
-					if allowed {
+		// 3. Authorization — role match OR permission match grants access
+		if rule != nil && (len(rule.Roles) > 0 || len(rule.Permissions) > 0) {
+			allowed := false
+
+			for _, r := range rule.Roles {
+				for _, pr := range principal.Roles {
+					if r == pr {
+						allowed = true
 						break
 					}
 				}
-				if !allowed {
-					return nil, status.Error(codes.PermissionDenied, "insufficient roles")
+				if allowed {
+					break
 				}
 			}
 
-			// Check Permissions
-			if len(rule.Permissions) > 0 {
-				allowed := false
+			if !allowed {
 				for _, perm := range rule.Permissions {
 					for _, pp := range principal.Permissions {
 						if perm == pp {
@@ -119,9 +112,10 @@ func AuthUnaryInterceptor(authService authservice.AuthService) grpc.UnaryServerI
 						break
 					}
 				}
-				if !allowed {
-					return nil, status.Error(codes.PermissionDenied, "insufficient permissions")
-				}
+			}
+
+			if !allowed {
+				return nil, status.Error(codes.PermissionDenied, "insufficient permissions")
 			}
 		}
 

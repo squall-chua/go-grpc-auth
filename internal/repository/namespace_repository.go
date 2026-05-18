@@ -73,7 +73,7 @@ func (r *mongoNamespaceRepository) List(ctx context.Context, query string, offse
 	if query != "" {
 		filter = gmqb.Regex(r.f("Name"), query, "i")
 	} else {
-		filter = gmqb.NewFilter()
+		filter = gmqb.Raw(bson.D{})
 	}
 
 	pipeline := gmqb.NewPipeline().

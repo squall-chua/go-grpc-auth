@@ -70,13 +70,19 @@ async function handleVerify() {
     })
 
     auth.setTokens(res)
-    // Fetch profile
     const principal = await api.fetch('/v1/auth/validate', {
       method: 'POST',
       body: { token: res.access_token }
     })
-    auth.setUser(principal)
-    
+    auth.setUser({
+      id: principal.user_id,
+      email: '',
+      username: '',
+      namespace: principal.namespace,
+      roles: principal.roles || [],
+      permissions: principal.permissions || [],
+    })
+
     toast.add({ title: 'Verified successfully', color: 'green' })
     navigateTo('/dashboard')
   } catch (err) {

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"google.golang.org/protobuf/encoding/protojson"
 	"github.com/squall-chua/go-grpc-auth/api/swagger"
 	"github.com/squall-chua/go-grpc-auth/api/v1/admin"
 	"github.com/squall-chua/go-grpc-auth/api/v1/auth"
@@ -12,8 +13,31 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func NewGatewayServer(ctx context.Context, grpcPort string) (*http.Server, error) {
-	mux := runtime.NewServeMux()
+	mux := runtime.NewServeMux(
+		runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.JSONPb{
+			MarshalOptions: protojson.MarshalOptions{
+				UseProtoNames: true,
+			},
+			UnmarshalOptions: protojson.UnmarshalOptions{
+				DiscardUnknown: true,
+			},
+		}),
+	)
 	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 
 	err := auth.RegisterAuthServiceHandlerFromEndpoint(ctx, mux, ":"+grpcPort, opts)
@@ -36,6 +60,10 @@ func NewGatewayServer(ctx context.Context, grpcPort string) (*http.Server, error
 		return nil, err
 	}
 
+	err = admin.RegisterOIDCClientServiceHandlerFromEndpoint(ctx, mux, ":"+grpcPort, opts)
+	if err != nil {
+		return nil, err
+	}
 
 	// Wrapper for other HTTP routes (Swagger, Metrics, etc.)
 	handler := http.NewServeMux()
@@ -54,6 +82,6 @@ func NewGatewayServer(ctx context.Context, grpcPort string) (*http.Server, error
 	}
 
 	return &http.Server{
-		Handler: handler,
+		Handler: corsMiddleware(handler),
 	}, nil
 }

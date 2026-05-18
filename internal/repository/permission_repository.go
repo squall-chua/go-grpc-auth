@@ -42,6 +42,7 @@ func (r *mongoPermissionRepository) List(ctx context.Context, namespace string, 
 		Match(filter).
 		Facet(map[string]gmqb.Pipeline{
 			"data": gmqb.NewPipeline().
+				Sort(gmqb.Asc(r.f("Name"))).
 				Skip(int64(offset)).
 				Limit(int64(limit)),
 			"metadata": gmqb.NewPipeline().

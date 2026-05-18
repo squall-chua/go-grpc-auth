@@ -7,6 +7,7 @@ import (
 	"github.com/squall-chua/gmqb"
 	"github.com/squall-chua/go-grpc-auth/internal/domain"
 	"github.com/squall-chua/go-grpc-auth/internal/repository"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/zap"
 )
 
@@ -80,7 +81,7 @@ func (s *auditService) List(ctx context.Context, listFilter AuditListFilter, pag
 	if len(conditions) > 0 {
 		filter = gmqb.And(conditions...)
 	} else {
-		filter = gmqb.NewFilter()
+		filter = gmqb.Raw(bson.D{})
 	}
 
 	offset := (page - 1) * pageSize

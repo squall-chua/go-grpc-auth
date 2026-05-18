@@ -58,7 +58,11 @@ service AuthService {
   // Token Validation (used by interceptors)
   rpc ValidateToken(ValidateTokenRequest) returns (Principal) {
     option (google.api.http) = {
-      get: "/v1/auth/validate"
+      post: "/v1/auth/validate"
+      body: "*"
+    };
+    option (options.v1.rule) = {
+      public: true
     };
   }
 

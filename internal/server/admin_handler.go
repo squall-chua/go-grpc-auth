@@ -299,15 +299,15 @@ func (s *namespaceGRPCServer) UpdateNamespaceConfig(ctx context.Context, req *ad
 		return nil, err
 	}
 
-	ns.Config.MFARequired = req.Config.MfaRequired
-	ns.Config.AllowedSocialProviders = req.Config.AllowedSocialProviders
-	if req.Config.PasswordPolicy != nil {
-		ns.Config.PasswordPolicy.MinLength = int(req.Config.PasswordPolicy.MinLength)
-		ns.Config.PasswordPolicy.RequireUppercase = req.Config.PasswordPolicy.RequireUppercase
-		ns.Config.PasswordPolicy.RequireLowercase = req.Config.PasswordPolicy.RequireLowercase
-		ns.Config.PasswordPolicy.RequireNumber = req.Config.PasswordPolicy.RequireNumber
-		ns.Config.PasswordPolicy.RequireSpecial = req.Config.PasswordPolicy.RequireSpecial
-	}
+	ns.Config.MFARequired = req.Config.GetMfaRequired()
+	ns.Config.AllowedSocialProviders = req.Config.GetAllowedSocialProviders()
+	pp := req.Config.GetPasswordPolicy()
+	ns.Config.PasswordPolicy.MinLength = int(pp.GetMinLength())
+	ns.Config.PasswordPolicy.RequireUppercase = pp.GetRequireUppercase()
+	ns.Config.PasswordPolicy.RequireLowercase = pp.GetRequireLowercase()
+	ns.Config.PasswordPolicy.RequireNumber = pp.GetRequireNumber()
+	ns.Config.PasswordPolicy.RequireSpecial = pp.GetRequireSpecial()
+	ns.Config.PasswordPolicy.PasswordHistory = int(pp.GetPasswordHistory())
 
 	err = s.service.UpdateNamespace(ctx, ns)
 	if err != nil {
@@ -337,6 +337,7 @@ func mapNamespace(ns *domain.Namespace) *admin.Namespace {
 				RequireLowercase: ns.Config.PasswordPolicy.RequireLowercase,
 				RequireNumber:    ns.Config.PasswordPolicy.RequireNumber,
 				RequireSpecial:   ns.Config.PasswordPolicy.RequireSpecial,
+				PasswordHistory:  int32(ns.Config.PasswordPolicy.PasswordHistory),
 			},
 		},
 	}
