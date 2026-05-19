@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package greeter.v1;
+
+import "google/api/annotations.proto";
+import "api/proto/options/v1/auth_rule.proto";
+
+option go_package = "github.com/squall-chua/go-grpc-auth/api/v1/greeter;greeter";
+
+service GreeterService {
+  rpc SayHello(HelloRequest) returns (HelloResponse) {
+    option (google.api.http) = {
+      post: "/v1/greeter/hello"
+      body: "*"
+    };
+    option (options.v1.rule) = {
+      public: true
+    };
+  }
+
+  rpc SayHelloAuthenticated(HelloRequest) returns (HelloResponse) {
+    option (google.api.http) = {
+      post: "/v1/greeter/hello-authenticated"
+      body: "*"
+    };
+    option (options.v1.rule) = {
+    };
+  }
+
+  rpc SayHelloAdmin(HelloRequest) returns (HelloResponse) {
+    option (google.api.http) = {
+      post: "/v1/greeter/hello-admin"
+      body: "*"
+    };
+    option (options.v1.rule) = {
+      roles: ["admin"]
+    };
+  }
+
+  rpc SayHelloEditor(HelloRequest) returns (HelloResponse) {
+    option (google.api.http) = {
+      post: "/v1/greeter/hello-editor"
+      body: "*"
+    };
+    option (options.v1.rule) = {
+      permissions: ["greet:write"]
+    };
+  }
+}
+
+message HelloRequest {
+  string name = 1;
+}
+
+message HelloResponse {
+  string message = 1;
+}
