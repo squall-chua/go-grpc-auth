@@ -199,6 +199,46 @@ pkg/
 web/                Nuxt 4 SPA (embedded in binary)
 migrations/         MongoDB migrations (migrate-mongo)
 scripts/            Build and setup scripts
+examples/greeter/   Example gRPC service + client using exported interceptors
+```
+
+## Examples
+
+### Greeter Service
+
+A minimal gRPC service demonstrating the exported auth interceptors in `pkg/interceptor/`. The server authenticates itself with the auth server and validates incoming tokens. The client logs in and auto-injects tokens into every call.
+
+**4 RPCs at different auth levels:**
+
+| RPC | Auth Rule |
+|-----|-----------|
+| `SayHello` | Public |
+| `SayHelloAuthenticated` | Any valid token |
+| `SayHelloAdmin` | `admin` role required |
+| `SayHelloEditor` | `greet:write` permission required |
+
+**Running:**
+
+```bash
+# 1. Start auth server
+go run ./cmd/server/main.go
+
+# 2. Register accounts
+curl -X POST http://localhost:8080/v1/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"greeter-svc@example.com","username":"greeter-svc","password":"svcpass"}'
+curl -X POST http://localhost:8080/v1/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"testuser@example.com","username":"testuser","password":"testpass"}'
+
+# 3. Start greeter server
+go run ./examples/greeter/server/main.go \
+  -auth grpc://greeter-svc:svcpass@localhost:8080
+
+# 4. Run client
+go run ./examples/greeter/client/main.go \
+  -auth grpc://testuser:testpass@localhost:8080 \
+  -greeter grpc://localhost:9090
 ```
 
 ## Development
