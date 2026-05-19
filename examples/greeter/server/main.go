@@ -16,9 +16,13 @@ import (
 	interceptorclient "github.com/squall-chua/go-grpc-auth/pkg/interceptor/client"
 	interceptorserver "github.com/squall-chua/go-grpc-auth/pkg/interceptor/server"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 )
 
+// staticTokenProvider holds a fixed token. For production, implement
+// client.TokenProvider with refresh logic since access tokens expire.
 type staticTokenProvider struct {
 	token string
 }
@@ -39,6 +43,9 @@ func (s *greeterServer) SayHello(ctx context.Context, req *greeter.HelloRequest)
 
 func (s *greeterServer) SayHelloAuthenticated(ctx context.Context, req *greeter.HelloRequest) (*greeter.HelloResponse, error) {
 	p := interceptorserver.GetPrincipal(ctx)
+	if p == nil {
+		return nil, status.Error(codes.Internal, "principal missing from context")
+	}
 	return &greeter.HelloResponse{
 		Message: fmt.Sprintf("Hello, %s! (user: %s)", req.Name, p.UserId),
 	}, nil
@@ -46,6 +53,9 @@ func (s *greeterServer) SayHelloAuthenticated(ctx context.Context, req *greeter.
 
 func (s *greeterServer) SayHelloAdmin(ctx context.Context, req *greeter.HelloRequest) (*greeter.HelloResponse, error) {
 	p := interceptorserver.GetPrincipal(ctx)
+	if p == nil {
+		return nil, status.Error(codes.Internal, "principal missing from context")
+	}
 	return &greeter.HelloResponse{
 		Message: fmt.Sprintf("Hello, %s! (admin user: %s)", req.Name, p.UserId),
 	}, nil
@@ -53,6 +63,9 @@ func (s *greeterServer) SayHelloAdmin(ctx context.Context, req *greeter.HelloReq
 
 func (s *greeterServer) SayHelloEditor(ctx context.Context, req *greeter.HelloRequest) (*greeter.HelloResponse, error) {
 	p := interceptorserver.GetPrincipal(ctx)
+	if p == nil {
+		return nil, status.Error(codes.Internal, "principal missing from context")
+	}
 	return &greeter.HelloResponse{
 		Message: fmt.Sprintf("Hello, %s! (editor user: %s)", req.Name, p.UserId),
 	}, nil
@@ -108,7 +121,7 @@ func main() {
 	authInterceptor := interceptorserver.NewAuthInterceptor(auth.NewAuthServiceClient(authenticatedConn))
 
 	// Create and start gRPC server
-	srv := grpc.NewServer(grpc.UnaryInterceptor(authInterceptor.Unary()))
+	srv := grpc.NewServer(grpc.ChainUnaryInterceptor(authInterceptor.Unary()))
 	greeter.RegisterGreeterServiceServer(srv, &greeterServer{})
 
 	lis, err := net.Listen("tcp", *addr)

@@ -14,6 +14,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// staticTokenProvider holds a fixed token. For production, implement
+// client.TokenProvider with refresh logic since access tokens expire.
 type staticTokenProvider struct {
 	token string
 }
