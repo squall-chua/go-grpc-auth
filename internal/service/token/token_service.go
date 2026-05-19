@@ -12,7 +12,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/squall-chua/go-grpc-auth/internal/domain"
 	"github.com/squall-chua/go-grpc-auth/internal/repository"
-	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 type TokenService interface {
@@ -26,7 +25,6 @@ type TokenService interface {
 }
 
 type tokenService struct {
-	mongoClient          *mongo.Client
 	tokenRepo            repository.TokenRepository
 	userRepo             repository.UserRepository
 	clientRepo           repository.ClientRepository
@@ -39,7 +37,6 @@ type tokenService struct {
 }
 
 func NewTokenService(
-	mongoClient *mongo.Client,
 	tokenRepo repository.TokenRepository,
 	userRepo repository.UserRepository,
 	clientRepo repository.ClientRepository,
@@ -49,7 +46,6 @@ func NewTokenService(
 	accessTokenDuration, refreshTokenDuration time.Duration,
 ) TokenService {
 	return &tokenService{
-		mongoClient:          mongoClient,
 		tokenRepo:            tokenRepo,
 		userRepo:             userRepo,
 		clientRepo:           clientRepo,
@@ -174,22 +170,11 @@ func (s *tokenService) RefreshToken(ctx context.Context, refreshToken string) (*
 		return nil, fmt.Errorf("failed to get user for refresh: %w", err)
 	}
 
-	session, err := s.mongoClient.StartSession()
-	if err != nil {
-		return nil, fmt.Errorf("failed to start session: %w", err)
+	if err := s.tokenRepo.DeleteByHash(ctx, hash); err != nil {
+		return nil, fmt.Errorf("failed to revoke refresh token: %w", err)
 	}
-	defer session.EndSession(ctx)
 
-	var pair *domain.TokenPair
-	_, err = session.WithTransaction(ctx, func(sc context.Context) (interface{}, error) {
-		if err := s.tokenRepo.DeleteByHash(sc, hash); err != nil {
-			return nil, fmt.Errorf("failed to revoke refresh token: %w", err)
-		}
-
-		var txErr error
-		pair, txErr = s.GenerateTokenPair(sc, user, t.Audience, t.Scopes)
-		return nil, txErr
-	})
+	pair, err := s.GenerateTokenPair(ctx, user, t.Audience, t.Scopes)
 	if err != nil {
 		return nil, err
 	}
@@ -198,26 +183,17 @@ func (s *tokenService) RefreshToken(ctx context.Context, refreshToken string) (*
 }
 
 func (s *tokenService) RevokeTokens(ctx context.Context, accessToken, refreshToken string) error {
-	session, err := s.mongoClient.StartSession()
-	if err != nil {
-		return fmt.Errorf("failed to start session: %w", err)
+	if accessToken != "" {
+		if err := s.tokenRepo.DeleteByHash(ctx, s.hashToken(accessToken)); err != nil {
+			return err
+		}
 	}
-	defer session.EndSession(ctx)
-
-	_, err = session.WithTransaction(ctx, func(sc context.Context) (interface{}, error) {
-		if accessToken != "" {
-			if err := s.tokenRepo.DeleteByHash(sc, s.hashToken(accessToken)); err != nil {
-				return nil, err
-			}
+	if refreshToken != "" {
+		if err := s.tokenRepo.DeleteByHash(ctx, s.hashToken(refreshToken)); err != nil {
+			return err
 		}
-		if refreshToken != "" {
-			if err := s.tokenRepo.DeleteByHash(sc, s.hashToken(refreshToken)); err != nil {
-				return nil, err
-			}
-		}
-		return nil, nil
-	})
-	return err
+	}
+	return nil
 }
 
 func (s *tokenService) RevokeAllForUser(ctx context.Context, userID string) error {

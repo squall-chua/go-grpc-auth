@@ -70,7 +70,7 @@ func main() {
 	kid := keys.GenerateKID(publicKey)
 
 	// Services
-	tokenSvc := tokenservice.NewTokenService(db.Client, tokenRepo, userRepo, clientRepo, roleRepo, privateKey, kid, cfg.Issuer, cfg.AccessTokenDuration, cfg.RefreshTokenDuration)
+	tokenSvc := tokenservice.NewTokenService(tokenRepo, userRepo, clientRepo, roleRepo, privateKey, kid, cfg.Issuer, cfg.AccessTokenDuration, cfg.RefreshTokenDuration)
 	mfaSvc := authservice.NewMFAService(mfaRepo, authservice.MFAConfig{
 		EmailEnabled: cfg.MFAEmailEnabled,
 		SMSEnabled:   cfg.MFASMSEnabled,
