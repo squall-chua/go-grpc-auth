@@ -153,7 +153,7 @@ func (s *adminGRPCServer) ListRoles(ctx context.Context, req *admin.ListRolesReq
 		pageSize = 10
 	}
 
-	roles, total, err := s.service.ListRoles(ctx, req.Namespace, page, pageSize)
+	roles, total, err := s.service.ListRoles(ctx, req.Query, page, pageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +210,7 @@ func (s *adminGRPCServer) ListPermissions(ctx context.Context, req *admin.ListPe
 		pageSize = 10
 	}
 
-	perms, total, err := s.service.ListPermissions(ctx, req.Namespace, page, pageSize)
+	perms, total, err := s.service.ListPermissions(ctx, req.Query, page, pageSize)
 	if err != nil {
 		return nil, err
 	}

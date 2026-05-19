@@ -13,7 +13,7 @@ type RoleRepository interface {
 	Create(ctx context.Context, role *domain.Role) error
 	GetByID(ctx context.Context, id string) (*domain.Role, error)
 	GetByName(ctx context.Context, namespace, name string) (*domain.Role, error)
-	List(ctx context.Context, namespace string, offset, limit int) ([]*domain.Role, int64, error)
+	List(ctx context.Context, query string, offset, limit int) ([]*domain.Role, int64, error)
 	Update(ctx context.Context, role *domain.Role) error
 	Delete(ctx context.Context, id string) error
 }
@@ -53,11 +53,16 @@ func (r *mongoRoleRepository) GetByName(ctx context.Context, namespace, name str
 	))
 }
 
-func (r *mongoRoleRepository) List(ctx context.Context, namespace string, offset, limit int) ([]*domain.Role, int64, error) {
-	filter := gmqb.Eq(r.f("Namespace"), namespace)
+func (r *mongoRoleRepository) List(ctx context.Context, query string, offset, limit int) ([]*domain.Role, int64, error) {
+	pipeline := gmqb.NewPipeline()
+	if query != "" {
+		pipeline = pipeline.Match(gmqb.Or(
+			gmqb.Regex(r.f("Name"), query, "i"),
+			gmqb.Regex(r.f("Namespace"), query, "i"),
+		))
+	}
 
-	pipeline := gmqb.NewPipeline().
-		Match(filter).
+	pipeline = pipeline.
 		Facet(map[string]gmqb.Pipeline{
 			"data": gmqb.NewPipeline().
 				Sort(gmqb.Asc(r.f("Name"))).

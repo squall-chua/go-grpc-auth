@@ -11,7 +11,7 @@ import (
 
 type PermissionRepository interface {
 	Create(ctx context.Context, perm *domain.Permission) error
-	List(ctx context.Context, namespace string, offset, limit int) ([]*domain.Permission, int64, error)
+	List(ctx context.Context, query string, offset, limit int) ([]*domain.Permission, int64, error)
 	Delete(ctx context.Context, id string) error
 }
 
@@ -35,11 +35,16 @@ func (r *mongoPermissionRepository) Create(ctx context.Context, perm *domain.Per
 	return err
 }
 
-func (r *mongoPermissionRepository) List(ctx context.Context, namespace string, offset, limit int) ([]*domain.Permission, int64, error) {
-	filter := gmqb.Eq(r.f("Namespace"), namespace)
+func (r *mongoPermissionRepository) List(ctx context.Context, query string, offset, limit int) ([]*domain.Permission, int64, error) {
+	pipeline := gmqb.NewPipeline()
+	if query != "" {
+		pipeline = pipeline.Match(gmqb.Or(
+			gmqb.Regex(r.f("Name"), query, "i"),
+			gmqb.Regex(r.f("Namespace"), query, "i"),
+		))
+	}
 
-	pipeline := gmqb.NewPipeline().
-		Match(filter).
+	pipeline = pipeline.
 		Facet(map[string]gmqb.Pipeline{
 			"data": gmqb.NewPipeline().
 				Sort(gmqb.Asc(r.f("Name"))).

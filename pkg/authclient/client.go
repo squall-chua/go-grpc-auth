@@ -175,11 +175,11 @@ func (c *Client) CreateRole(ctx context.Context, name, namespace string, permiss
 	})
 }
 
-func (c *Client) ListRoles(ctx context.Context, namespace string, pageSize, page int32) (*admin.ListRolesResponse, error) {
+func (c *Client) ListRoles(ctx context.Context, query string, pageSize, page int32) (*admin.ListRolesResponse, error) {
 	return c.Admin.ListRoles(ctx, &admin.ListRolesRequest{
-		Namespace: namespace,
-		PageSize:  pageSize,
-		Page:      page,
+		Query:    query,
+		PageSize: pageSize,
+		Page:     page,
 	})
 }
 

@@ -36,6 +36,12 @@
           </div>
         </template>
 
+        <template #permissions-data="{ row }">
+          <div class="flex flex-wrap gap-1">
+            <UBadge v-for="perm in row.permissions" :key="perm" color="gray" variant="soft" size="xs">{{ perm }}</UBadge>
+          </div>
+        </template>
+
         <template #actions-data="{ row }">
           <div class="flex gap-1">
             <UTooltip text="View Details">
@@ -87,7 +93,7 @@
               <span v-if="!selectedUser.roles?.length" class="text-sm text-slate-500">No roles</span>
             </div>
             <div class="flex gap-2">
-              <USelectMenu v-model="newRole" :options="grantableRoles" placeholder="Select role..." size="sm" class="flex-1" />
+              <USelectMenu v-model="newRole" :options="grantableRoles" placeholder="Select or type role..." size="sm" class="flex-1" searchable creatable @create="onCreateRole" />
               <UButton size="sm" :disabled="!newRole" @click="grantRole">Grant</UButton>
             </div>
           </div>
@@ -104,7 +110,7 @@
               <span v-if="!selectedUser.permissions?.length" class="text-sm text-slate-500">No permissions</span>
             </div>
             <div class="flex gap-2">
-              <USelectMenu v-model="newPermission" :options="grantablePermissions" placeholder="Select permission..." size="sm" class="flex-1" />
+              <USelectMenu v-model="newPermission" :options="grantablePermissions" placeholder="Select or type permission..." size="sm" class="flex-1" searchable creatable @create="onCreatePermission" />
               <UButton size="sm" :disabled="!newPermission" @click="grantPermission">Grant</UButton>
             </div>
           </div>
@@ -180,6 +186,7 @@ const columns = [
   { key: 'email', label: 'Email' },
   { key: 'namespace', label: 'Namespace' },
   { key: 'roles', label: 'Roles' },
+  { key: 'permissions', label: 'Permissions' },
   { key: 'status', label: 'Status' },
   { key: 'actions', label: '' }
 ]
@@ -232,6 +239,16 @@ const grantablePermissions = computed(() => {
   return availablePermissions.value.filter(p => !assigned.has(p))
 })
 
+function onCreateRole(val) {
+  availableRoles.value.push(val)
+  newRole.value = val
+}
+
+function onCreatePermission(val) {
+  availablePermissions.value.push(val)
+  newPermission.value = val
+}
+
 async function fetchRolesAndPermissions(namespace) {
   try {
     const [rolesRes, permsRes] = await Promise.all([
@@ -267,9 +284,10 @@ async function updateStatus(status) {
 
 async function grantRole() {
   if (!newRole.value) return
+  const role = typeof newRole.value === 'string' ? newRole.value : newRole.value.label
   try {
-    await api.fetch(`/v1/admin/users/${selectedUser.value.id}/roles`, { method: 'POST', body: { roles: [newRole.value] } })
-    selectedUser.value.roles = [...(selectedUser.value.roles || []), newRole.value]
+    await api.fetch(`/v1/admin/users/${selectedUser.value.id}/roles`, { method: 'POST', body: { roles: [role] } })
+    selectedUser.value.roles = [...(selectedUser.value.roles || []), role]
     newRole.value = null
     toast.add({ title: 'Role granted', color: 'green' })
   } catch { toast.add({ title: 'Failed to grant role', color: 'red' }) }
@@ -285,9 +303,10 @@ async function revokeRole(role) {
 
 async function grantPermission() {
   if (!newPermission.value) return
+  const perm = typeof newPermission.value === 'string' ? newPermission.value : newPermission.value.label
   try {
-    await api.fetch(`/v1/admin/users/${selectedUser.value.id}/permissions`, { method: 'POST', body: { permissions: [newPermission.value] } })
-    selectedUser.value.permissions = [...(selectedUser.value.permissions || []), newPermission.value]
+    await api.fetch(`/v1/admin/users/${selectedUser.value.id}/permissions`, { method: 'POST', body: { permissions: [perm] } })
+    selectedUser.value.permissions = [...(selectedUser.value.permissions || []), perm]
     newPermission.value = null
     toast.add({ title: 'Permission granted', color: 'green' })
   } catch { toast.add({ title: 'Failed to grant permission', color: 'red' }) }

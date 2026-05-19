@@ -9,7 +9,7 @@
     </header>
 
     <UCard>
-      <UInput v-model="namespace" placeholder="Namespace" class="w-48 mb-4" @input="debouncedFetch" />
+      <UInput v-model="search" icon="i-heroicons-magnifying-glass" placeholder="Search by name or namespace..." class="w-80 mb-4" @input="debouncedFetch" />
 
       <UTable :rows="permissions" :columns="columns" :loading="loading">
         <template #actions-data="{ row }">
@@ -57,7 +57,7 @@ const loading = ref(true)
 const saving = ref(false)
 const isCreateOpen = ref(false)
 const permissions = ref([])
-const namespace = ref('default')
+const search = ref('')
 const form = reactive({ name: '', namespace: 'default', description: '' })
 
 const columns = [
@@ -72,7 +72,7 @@ function debouncedFetch() { clearTimeout(fetchTimeout); fetchTimeout = setTimeou
 
 function openCreateModal() {
   form.name = ''
-  form.namespace = namespace.value
+  form.namespace = 'default'
   form.description = ''
   isCreateOpen.value = true
 }
@@ -80,7 +80,9 @@ function openCreateModal() {
 async function fetchPermissions() {
   loading.value = true
   try {
-    const res = await api.fetch(`/v1/admin/permissions?page_size=100&namespace=${namespace.value}`)
+    const params = new URLSearchParams({ page_size: '100' })
+    if (search.value) params.set('query', search.value)
+    const res = await api.fetch(`/v1/admin/permissions?${params}`)
     permissions.value = res.permissions || []
   } catch { toast.add({ title: 'Error fetching permissions', color: 'red' }) }
   finally { loading.value = false }

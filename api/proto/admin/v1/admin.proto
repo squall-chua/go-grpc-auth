@@ -255,9 +255,9 @@ message CreateRoleRequest {
 }
 
 message ListRolesRequest {
-  string namespace = 1;
-  int32 page_size = 2;
-  int32 page = 3;
+  int32 page_size = 1;
+  int32 page = 2;
+  string query = 3;
 }
 
 message ListRolesResponse {
@@ -311,9 +311,9 @@ message CreatePermissionRequest {
 }
 
 message ListPermissionsRequest {
-  string namespace = 1;
-  int32 page_size = 2;
-  int32 page = 3;
+  int32 page_size = 1;
+  int32 page = 2;
+  string query = 3;
 }
 
 message ListPermissionsResponse {

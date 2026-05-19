@@ -10,7 +10,7 @@
 
     <UCard>
       <div class="flex items-center gap-2 mb-4">
-        <UInput v-model="namespace" placeholder="Namespace" class="w-48" @input="debouncedFetch" />
+        <UInput v-model="search" icon="i-heroicons-magnifying-glass" placeholder="Search by name or namespace..." class="w-80" @input="debouncedFetch" />
       </div>
 
       <UTable :rows="roles" :columns="columns" :loading="loading">
@@ -65,7 +65,7 @@ const loading = ref(true)
 const saving = ref(false)
 const isCreateOpen = ref(false)
 const roles = ref([])
-const namespace = ref('default')
+const search = ref('')
 const permissionsInput = ref('')
 const form = reactive({ name: '', namespace: 'default', permissions: [] })
 
@@ -81,7 +81,7 @@ function debouncedFetch() { clearTimeout(fetchTimeout); fetchTimeout = setTimeou
 
 function openCreateModal() {
   form.name = ''
-  form.namespace = namespace.value
+  form.namespace = 'default'
   permissionsInput.value = ''
   isCreateOpen.value = true
 }
@@ -89,7 +89,9 @@ function openCreateModal() {
 async function fetchRoles() {
   loading.value = true
   try {
-    const res = await api.fetch(`/v1/admin/roles?page_size=100&namespace=${namespace.value}`)
+    const params = new URLSearchParams({ page_size: '100' })
+    if (search.value) params.set('query', search.value)
+    const res = await api.fetch(`/v1/admin/roles?${params}`)
     roles.value = res.roles || []
   } catch { toast.add({ title: 'Error fetching roles', color: 'red' }) }
   finally { loading.value = false }
