@@ -178,6 +178,17 @@ Client --> cmux (PORT)
 
 **RBAC:** Proto methods are annotated with `options.v1.rule` specifying required roles/permissions. The gRPC interceptor validates tokens and enforces access (role match OR permission match).
 
+**Automatic role/permission registration:** Services that authenticate via OIDC client credentials can automatically register their declared roles and permissions with the auth server on startup. The `authclient.RegisterServiceRolesAndPermissions()` helper uses protobuf reflection to extract all roles and permissions from `options.v1.rule` annotations and creates them via the Admin API (idempotent — duplicates are ignored). This ensures roles and permissions are visible in the admin UI for granting to users without manual setup.
+
+```go
+// In your service's main.go, after authenticating with the auth server:
+authClient, err := authclient.NewClient(authHost, provider,
+    grpc.WithTransportCredentials(insecure.NewCredentials()),
+)
+serviceDesc := myservice.File_my_proto.Services().ByName("MyService")
+err = authClient.RegisterServiceRolesAndPermissions(ctx, "default", "My service", serviceDesc)
+```
+
 ## Project Structure
 
 ```
@@ -206,7 +217,7 @@ examples/greeter/   Example gRPC service + client using exported interceptors
 
 ### Greeter Service
 
-A minimal gRPC service demonstrating the exported auth interceptors in `pkg/interceptor/`. The server authenticates itself with the auth server and validates incoming tokens. The client logs in and auto-injects tokens into every call.
+A minimal gRPC service demonstrating the exported auth interceptors in `pkg/interceptor/`. The server authenticates itself with the auth server, automatically registers its declared roles and permissions, and validates incoming tokens. The client logs in and auto-injects tokens into every call.
 
 **4 RPCs at different auth levels:**
 
