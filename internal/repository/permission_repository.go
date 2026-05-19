@@ -11,6 +11,7 @@ import (
 
 type PermissionRepository interface {
 	Create(ctx context.Context, perm *domain.Permission) error
+	GetByName(ctx context.Context, namespace, name string) (*domain.Permission, error)
 	List(ctx context.Context, query string, offset, limit int) ([]*domain.Permission, int64, error)
 	Delete(ctx context.Context, id string) error
 }
@@ -27,12 +28,45 @@ func NewPermissionRepository(db *mongo.Database) PermissionRepository {
 	}
 }
 
+func (r *mongoPermissionRepository) GetByName(ctx context.Context, namespace, name string) (*domain.Permission, error) {
+	return r.collection.FindOne(ctx, gmqb.And(
+		gmqb.Eq(r.f("Namespace"), namespace),
+		gmqb.Eq(r.f("Name"), name),
+	))
+}
+
 func (r *mongoPermissionRepository) Create(ctx context.Context, perm *domain.Permission) error {
 	if perm.ID == bson.NilObjectID {
 		perm.ID = bson.NewObjectID()
 	}
-	_, err := r.collection.InsertOne(ctx, perm)
-	return err
+
+	filter := gmqb.And(
+		gmqb.Eq(r.f("Namespace"), perm.Namespace),
+		gmqb.Eq(r.f("Name"), perm.Name),
+	)
+
+	update := gmqb.NewUpdate().
+		SetOnInsert(r.f("ID"), perm.ID).
+		SetOnInsert(r.f("Name"), perm.Name).
+		SetOnInsert(r.f("Namespace"), perm.Namespace).
+		SetOnInsert(r.f("Description"), perm.Description).
+		SetOnInsert(r.f("CreatedAt"), perm.CreatedAt).
+		SetOnInsert(r.f("UpdatedAt"), perm.UpdatedAt)
+
+	result, err := r.collection.UpsertOne(ctx, filter, update)
+	if err != nil {
+		return err
+	}
+
+	if result.UpsertedCount == 0 {
+		existing, err := r.GetByName(ctx, perm.Namespace, perm.Name)
+		if err != nil {
+			return err
+		}
+		*perm = *existing
+	}
+
+	return nil
 }
 
 func (r *mongoPermissionRepository) List(ctx context.Context, query string, offset, limit int) ([]*domain.Permission, int64, error) {

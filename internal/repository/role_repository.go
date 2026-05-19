@@ -34,8 +34,34 @@ func (r *mongoRoleRepository) Create(ctx context.Context, role *domain.Role) err
 	if role.ID == bson.NilObjectID {
 		role.ID = bson.NewObjectID()
 	}
-	_, err := r.collection.InsertOne(ctx, role)
-	return err
+
+	filter := gmqb.And(
+		gmqb.Eq(r.f("Namespace"), role.Namespace),
+		gmqb.Eq(r.f("Name"), role.Name),
+	)
+
+	update := gmqb.NewUpdate().
+		SetOnInsert(r.f("ID"), role.ID).
+		SetOnInsert(r.f("Name"), role.Name).
+		SetOnInsert(r.f("Namespace"), role.Namespace).
+		SetOnInsert(r.f("Permissions"), role.Permissions).
+		SetOnInsert(r.f("CreatedAt"), role.CreatedAt).
+		SetOnInsert(r.f("UpdatedAt"), role.UpdatedAt)
+
+	result, err := r.collection.UpsertOne(ctx, filter, update)
+	if err != nil {
+		return err
+	}
+
+	if result.UpsertedCount == 0 {
+		existing, err := r.GetByName(ctx, role.Namespace, role.Name)
+		if err != nil {
+			return err
+		}
+		*role = *existing
+	}
+
+	return nil
 }
 
 func (r *mongoRoleRepository) GetByID(ctx context.Context, id string) (*domain.Role, error) {

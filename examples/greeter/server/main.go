@@ -98,6 +98,20 @@ func main() {
 	}
 	log.Printf("authenticated with auth server as OIDC client %s", clientID)
 
+	// Register roles and permissions declared in proto annotations.
+	// The OIDC client must have "roles:write" and "permissions:write" in its AllowedScopes.
+	authClient, err := authclient.NewClient(authHost, provider,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		log.Fatalf("failed to create auth client: %v", err)
+	}
+	serviceDesc := greeter.File_api_proto_greeter_v1_greeter_proto.Services().ByName("GreeterService")
+	if err := authClient.RegisterServiceRolesAndPermissions(context.Background(), "default", "Greeter service", serviceDesc); err != nil {
+		log.Fatalf("failed to register roles/permissions: %v", err)
+	}
+	log.Println("registered service roles and permissions with auth server")
+
 	// Create authenticated connection to auth server for token validation
 	authenticatedConn, err := grpc.NewClient(authHost,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
