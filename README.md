@@ -223,17 +223,16 @@ A minimal gRPC service demonstrating the exported auth interceptors in `pkg/inte
 # 1. Start auth server
 go run ./cmd/server/main.go
 
-# 2. Register accounts
-curl -X POST http://localhost:8080/v1/auth/register \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"greeter-svc@example.com","username":"greeter-svc","password":"svcpass"}'
+# 2. Register an OIDC client for the greeter service and a test user
+# (use the superadmin account — see Default Credentials above)
+# Register OIDC client via Admin API, then register a test user:
 curl -X POST http://localhost:8080/v1/auth/register \
   -H 'Content-Type: application/json' \
   -d '{"email":"testuser@example.com","username":"testuser","password":"testpass"}'
 
-# 3. Start greeter server
+# 3. Start greeter server (authenticates via OIDC client credentials)
 go run ./examples/greeter/server/main.go \
-  -auth grpc://greeter-svc:svcpass@localhost:8080
+  -auth grpc://<client_id>:<client_secret>@localhost:8080
 
 # 4. Run client
 go run ./examples/greeter/client/main.go \

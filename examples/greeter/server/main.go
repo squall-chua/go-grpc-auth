@@ -13,6 +13,7 @@ import (
 
 	"github.com/squall-chua/go-grpc-auth/api/v1/auth"
 	"github.com/squall-chua/go-grpc-auth/api/v1/greeter"
+	"github.com/squall-chua/go-grpc-auth/pkg/authclient"
 	interceptorclient "github.com/squall-chua/go-grpc-auth/pkg/interceptor/client"
 	interceptorserver "github.com/squall-chua/go-grpc-auth/pkg/interceptor/server"
 	"google.golang.org/grpc"
@@ -20,16 +21,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 )
-
-// staticTokenProvider holds a fixed token. For production, implement
-// client.TokenProvider with refresh logic since access tokens expire.
-type staticTokenProvider struct {
-	token string
-}
-
-func (p *staticTokenProvider) GetToken(ctx context.Context) (string, error) {
-	return p.token, nil
-}
 
 type greeterServer struct {
 	greeter.UnimplementedGreeterServiceServer
@@ -73,41 +64,41 @@ func (s *greeterServer) SayHelloEditor(ctx context.Context, req *greeter.HelloRe
 
 func main() {
 	addr := flag.String("addr", ":9090", "greeter server listen address")
-	authURI := flag.String("auth", "", "auth server URI (grpc://user:pass@host:port)")
+	authURI := flag.String("auth", "", "auth server URI (grpc://client_id:client_secret@host:port)")
 	flag.Parse()
 
 	if *authURI == "" {
 		log.Fatal("-auth flag is required")
 	}
 
-	// Parse auth URI
+	// Parse auth URI to extract client credentials and host
 	u, err := url.Parse(*authURI)
 	if err != nil {
 		log.Fatalf("invalid auth URI: %v", err)
 	}
 	authHost := u.Host
-	username := u.User.Username()
-	password, _ := u.User.Password()
+	clientID := u.User.Username()
+	clientSecret, _ := u.User.Password()
 
-	// Login to auth server to get a service token
-	bootstrapConn, err := grpc.NewClient(authHost, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// Connect to auth server
+	conn, err := grpc.NewClient(authHost, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("failed to connect to auth server: %v", err)
 	}
-	defer bootstrapConn.Close()
+	defer conn.Close()
 
-	authClient := auth.NewAuthServiceClient(bootstrapConn)
-	tokenPair, err := authClient.Login(context.Background(), &auth.LoginRequest{
-		Login:    username,
-		Password: password,
-	})
-	if err != nil {
-		log.Fatalf("failed to login to auth server: %v", err)
+	// Authenticate as an OIDC client using client credentials grant.
+	// ClientCredentialsProvider automatically refreshes the token before expiry.
+	oidcClient := auth.NewOIDCServiceClient(conn)
+	provider := authclient.NewClientCredentialsProvider(oidcClient, clientID, clientSecret)
+
+	// Verify credentials work by fetching an initial token
+	if _, err := provider.GetToken(context.Background()); err != nil {
+		log.Fatalf("failed to authenticate with auth server: %v", err)
 	}
-	log.Printf("authenticated with auth server as %s", username)
+	log.Printf("authenticated with auth server as OIDC client %s", clientID)
 
 	// Create authenticated connection to auth server for token validation
-	provider := &staticTokenProvider{token: tokenPair.AccessToken}
 	authenticatedConn, err := grpc.NewClient(authHost,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithChainUnaryInterceptor(interceptorclient.UnaryAuthInterceptor(provider)),
