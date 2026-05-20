@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -21,7 +22,12 @@ import (
 	tokenservice "github.com/squall-chua/go-grpc-auth/internal/service/token"
 	"github.com/squall-chua/go-grpc-auth/internal/service/webhook"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/test/bufconn"
 )
+
+const bufconnSize = 1024 * 1024
 
 func main() {
 	// Initialize Zap Logger
@@ -117,7 +123,21 @@ func main() {
 		OIDCClientService: oidcClientSvc,
 	})
 
-	gatewaySrv, err := server.NewGatewayServer(ctx, cfg.Port, server.UIConfig{
+	// In-memory listener used by grpc-gateway to dial the gRPC server,
+	// avoiding a TCP loopback round-trip on every REST request.
+	bufLis := bufconn.Listen(bufconnSize)
+	gwConn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return bufLis.DialContext(ctx)
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		logger.Fatal("Failed to create gateway gRPC client", zap.Error(err))
+	}
+	defer gwConn.Close()
+
+	gatewaySrv, err := server.NewGatewayServer(ctx, gwConn, server.UIConfig{
 		ApiBase: fmt.Sprintf("http://localhost:%d", cfg.Port),
 		AppName: cfg.AppName,
 	})
@@ -125,7 +145,7 @@ func main() {
 		logger.Fatal("Failed to create gateway server", zap.Error(err))
 	}
 
-	srv := server.NewServer(cfg.Port, grpcSrv, gatewaySrv)
+	srv := server.NewServer(cfg.Port, bufLis, grpcSrv, gatewaySrv)
 
 	logger.Info("Starting multiplexed server", zap.String("port", cfg.Port))
 	if err := srv.Start(ctx); err != nil {

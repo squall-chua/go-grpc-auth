@@ -9,7 +9,6 @@ import (
 	"github.com/squall-chua/go-grpc-auth/api/v1/admin"
 	"github.com/squall-chua/go-grpc-auth/api/v1/auth"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -27,7 +26,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func NewGatewayServer(ctx context.Context, grpcPort string, uiCfg UIConfig) (*http.Server, error) {
+func NewGatewayServer(ctx context.Context, conn *grpc.ClientConn, uiCfg UIConfig) (*http.Server, error) {
 	mux := runtime.NewServeMux(
 		runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.JSONPb{
 			MarshalOptions: protojson.MarshalOptions{
@@ -38,31 +37,18 @@ func NewGatewayServer(ctx context.Context, grpcPort string, uiCfg UIConfig) (*ht
 			},
 		}),
 	)
-	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 
-	err := auth.RegisterAuthServiceHandlerFromEndpoint(ctx, mux, ":"+grpcPort, opts)
-	if err != nil {
-		return nil, err
+	registerHandlers := []func(context.Context, *runtime.ServeMux, *grpc.ClientConn) error{
+		auth.RegisterAuthServiceHandler,
+		admin.RegisterAdminServiceHandler,
+		admin.RegisterNamespaceServiceHandler,
+		auth.RegisterOIDCServiceHandler,
+		admin.RegisterOIDCClientServiceHandler,
 	}
-
-	err = admin.RegisterAdminServiceHandlerFromEndpoint(ctx, mux, ":"+grpcPort, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	err = admin.RegisterNamespaceServiceHandlerFromEndpoint(ctx, mux, ":"+grpcPort, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	err = auth.RegisterOIDCServiceHandlerFromEndpoint(ctx, mux, ":"+grpcPort, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	err = admin.RegisterOIDCClientServiceHandlerFromEndpoint(ctx, mux, ":"+grpcPort, opts)
-	if err != nil {
-		return nil, err
+	for _, register := range registerHandlers {
+		if err := register(ctx, mux, conn); err != nil {
+			return nil, err
+		}
 	}
 
 	// Wrapper for other HTTP routes (Swagger, Metrics, etc.)

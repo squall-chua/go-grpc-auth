@@ -11,18 +11,21 @@ import (
 	"github.com/soheilhy/cmux"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/test/bufconn"
 )
 
 type Server struct {
 	grpcServer *grpc.Server
 	httpServer *http.Server
+	bufLis     *bufconn.Listener
 	port       string
 }
 
-func NewServer(port string, grpcServer *grpc.Server, httpServer *http.Server) *Server {
+func NewServer(port string, bufLis *bufconn.Listener, grpcServer *grpc.Server, httpServer *http.Server) *Server {
 	return &Server{
 		grpcServer: grpcServer,
 		httpServer: httpServer,
+		bufLis:     bufLis,
 		port:       port,
 	}
 }
@@ -54,16 +57,25 @@ func (s *Server) Start(ctx context.Context) error {
 			zap.L().Error("HTTP server shutdown error", zap.Error(err))
 		}
 
-		// GracefulStop gRPC server
+		// GracefulStop gRPC server (drains both the cmux listener and the bufconn listener)
 		s.grpcServer.GracefulStop()
 
-		// Close the main listener to stop cmux
+		// Close the bufconn listener and the main TCP listener to stop cmux
+		s.bufLis.Close()
 		lis.Close()
 	}()
 
 	go func() {
-		if err := s.grpcServer.Serve(grpcLis); err != nil && err != cmux.ErrListenerClosed && err != net.ErrClosed {
+		if err := s.grpcServer.Serve(grpcLis); err != nil && err != cmux.ErrListenerClosed && err != net.ErrClosed && err != grpc.ErrServerStopped {
 			zap.L().Error("gRPC server error", zap.Error(err))
+		}
+	}()
+
+	// Serve gRPC over an in-memory bufconn listener so the grpc-gateway
+	// can dial the gRPC server without a TCP loopback round-trip.
+	go func() {
+		if err := s.grpcServer.Serve(s.bufLis); err != nil && err != cmux.ErrListenerClosed && err != net.ErrClosed && err != grpc.ErrServerStopped {
+			zap.L().Error("gRPC bufconn server error", zap.Error(err))
 		}
 	}()
 
