@@ -9,13 +9,31 @@ type Namespace struct {
 }
 
 type NamespaceConfig struct {
-	MFARequired            bool           `bson:"mfa_required"`
-	AllowedSocialProviders []string       `bson:"allowed_social_providers"`
-	PasswordPolicy         PasswordPolicy `bson:"password_policy"`
-	IPAllowlist            []string       `bson:"ip_allowlist"`
-	IPDenylist             []string       `bson:"ip_denylist"`
-	WebhookURL             string         `bson:"webhook_url"`
-	WebhookSecret          string         `bson:"webhook_secret"`
+	MFARequired            bool                        `bson:"mfa_required"`
+	AllowedSocialProviders []string                    `bson:"allowed_social_providers"`
+	PasswordPolicy         PasswordPolicy              `bson:"password_policy"`
+	IPAllowList            []string                    `bson:"ip_allow_list"`
+	IPDenyList             []string                    `bson:"ip_deny_list"`
+	WebhookURL             string                      `bson:"webhook_url"`
+	WebhookSecret          string                      `bson:"webhook_secret"`
+	Notification           NamespaceNotificationConfig `bson:"notification,omitempty"`
+}
+
+type NamespaceNotificationConfig struct {
+	EmailProvider  string                           `bson:"email_provider,omitempty"`
+	SMSProvider    string                           `bson:"sms_provider,omitempty"`
+	EmailTemplates map[string]EmailTemplateOverride `bson:"email_templates,omitempty"`
+	SMSTemplates   map[string]SMSTemplateOverride   `bson:"sms_templates,omitempty"`
+}
+
+type EmailTemplateOverride struct {
+	Subject  string `bson:"subject,omitempty"`
+	HTMLBody string `bson:"html_body,omitempty"`
+	TextBody string `bson:"text_body,omitempty"`
+}
+
+type SMSTemplateOverride struct {
+	Body string `bson:"body,omitempty"`
 }
 
 type PasswordPolicy struct {

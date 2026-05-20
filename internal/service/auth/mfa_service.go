@@ -11,34 +11,31 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/squall-chua/go-grpc-auth/internal/domain"
 	"github.com/squall-chua/go-grpc-auth/internal/repository"
+	"github.com/squall-chua/go-grpc-auth/internal/service/notification"
 )
 
 type MFAService interface {
 	InitiateTOTP(ctx context.Context, userID string, issuer string, accountName string) (secret string, qrCodeURL string, err error)
 	VerifyTOTP(ctx context.Context, userID string, code string) (bool, error)
 
-	InitiateEmailOTP(ctx context.Context, userID string, email string) error
+	InitiateEmailOTP(ctx context.Context, userID, namespace, email string) error
 	VerifyEmailOTP(ctx context.Context, userID string, code string) (bool, error)
 
-	InitiateSMSOTP(ctx context.Context, userID string, phoneNumber string) error
+	InitiateSMSOTP(ctx context.Context, userID, namespace, phoneNumber string) error
 	VerifySMSOTP(ctx context.Context, userID string, code string) (bool, error)
-	
+
 	CreateMFAToken(ctx context.Context, userID string, namespace string, method domain.MFAMethod) (string, error)
 	VerifyMFAToken(ctx context.Context, tokenStr string) (*domain.MFAToken, error)
 }
 
-type MFAConfig struct {
-	EmailEnabled bool
-	SMSEnabled   bool
-}
-
 type mfaService struct {
-	repo   repository.MFARepository
-	config MFAConfig
+	repo     repository.MFARepository
+	notifier notification.Service
+	appName  string
 }
 
-func NewMFAService(repo repository.MFARepository, config MFAConfig) MFAService {
-	return &mfaService{repo: repo, config: config}
+func NewMFAService(repo repository.MFARepository, notifier notification.Service, appName string) MFAService {
+	return &mfaService{repo: repo, notifier: notifier, appName: appName}
 }
 
 func (s *mfaService) InitiateTOTP(ctx context.Context, userID string, issuer string, accountName string) (string, string, error) {
@@ -84,11 +81,7 @@ func (s *mfaService) VerifyTOTP(ctx context.Context, userID string, code string)
 	return valid, nil
 }
 
-func (s *mfaService) InitiateEmailOTP(ctx context.Context, userID string, email string) error {
-	if !s.config.EmailEnabled {
-		return fmt.Errorf("email OTP delivery is not enabled")
-	}
-
+func (s *mfaService) InitiateEmailOTP(ctx context.Context, userID, namespace, email string) error {
 	code, err := generateOTPCode(6)
 	if err != nil {
 		return fmt.Errorf("failed to generate OTP: %w", err)
@@ -106,19 +99,23 @@ func (s *mfaService) InitiateEmailOTP(ctx context.Context, userID string, email 
 		return fmt.Errorf("failed to store email OTP: %w", err)
 	}
 
-	// TODO: integrate with an email delivery provider (e.g. SES, SendGrid)
-	return fmt.Errorf("email OTP delivery not implemented")
+	if err := s.notifier.SendEmail(ctx, namespace, userID, "mfa_email_otp", email, map[string]any{
+		"Code":       code,
+		"TTLMinutes": 5,
+		"AppName":    s.appName,
+	}); err != nil {
+		// Roll back the stored OTP so a failed delivery does not leave a guessable secret.
+		s.repo.DeleteSecret(ctx, userID, domain.MFAMethodEmail)
+		return err
+	}
+	return nil
 }
 
 func (s *mfaService) VerifyEmailOTP(ctx context.Context, userID string, code string) (bool, error) {
 	return s.verifyOTP(ctx, userID, domain.MFAMethodEmail, code)
 }
 
-func (s *mfaService) InitiateSMSOTP(ctx context.Context, userID string, phoneNumber string) error {
-	if !s.config.SMSEnabled {
-		return fmt.Errorf("SMS OTP delivery is not enabled")
-	}
-
+func (s *mfaService) InitiateSMSOTP(ctx context.Context, userID, namespace, phoneNumber string) error {
 	code, err := generateOTPCode(6)
 	if err != nil {
 		return fmt.Errorf("failed to generate OTP: %w", err)
@@ -136,8 +133,14 @@ func (s *mfaService) InitiateSMSOTP(ctx context.Context, userID string, phoneNum
 		return fmt.Errorf("failed to store SMS OTP: %w", err)
 	}
 
-	// TODO: integrate with an SMS gateway (e.g. Twilio, AWS SNS)
-	return fmt.Errorf("SMS OTP delivery not implemented")
+	if err := s.notifier.SendSMS(ctx, namespace, userID, "mfa_sms_otp", phoneNumber, map[string]any{
+		"Code":       code,
+		"TTLMinutes": 5,
+	}); err != nil {
+		s.repo.DeleteSecret(ctx, userID, domain.MFAMethodSMS)
+		return err
+	}
+	return nil
 }
 
 func (s *mfaService) VerifySMSOTP(ctx context.Context, userID string, code string) (bool, error) {
@@ -150,7 +153,6 @@ func (s *mfaService) verifyOTP(ctx context.Context, userID string, method domain
 		return false, fmt.Errorf("OTP not found or expired: %w", err)
 	}
 
-	// OTP codes expire after 5 minutes
 	if time.Since(secret.CreatedAt) > 5*time.Minute {
 		s.repo.DeleteSecret(ctx, userID, method)
 		return false, nil
@@ -160,7 +162,6 @@ func (s *mfaService) verifyOTP(ctx context.Context, userID string, method domain
 		return false, nil
 	}
 
-	// Clean up used OTP
 	s.repo.DeleteSecret(ctx, userID, method)
 	return true, nil
 }

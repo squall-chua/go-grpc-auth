@@ -17,6 +17,9 @@ import (
 	adminservice "github.com/squall-chua/go-grpc-auth/internal/service/admin"
 	"github.com/squall-chua/go-grpc-auth/internal/service/audit"
 	authservice "github.com/squall-chua/go-grpc-auth/internal/service/auth"
+	"github.com/squall-chua/go-grpc-auth/internal/service/notification"
+	"github.com/squall-chua/go-grpc-auth/internal/service/notification/templates"
+	"github.com/squall-chua/go-grpc-auth/internal/service/notification/wiring"
 	"github.com/squall-chua/go-grpc-auth/internal/service/oidc"
 	"github.com/squall-chua/go-grpc-auth/internal/service/ratelimit"
 	tokenservice "github.com/squall-chua/go-grpc-auth/internal/service/token"
@@ -78,11 +81,43 @@ func main() {
 
 	// Services
 	tokenSvc := tokenservice.NewTokenService(tokenRepo, userRepo, clientRepo, roleRepo, privateKey, kid, cfg.Issuer, cfg.AccessTokenDuration, cfg.RefreshTokenDuration)
-	mfaSvc := authservice.NewMFAService(mfaRepo, authservice.MFAConfig{
-		EmailEnabled: cfg.MFAEmailEnabled,
-		SMSEnabled:   cfg.MFASMSEnabled,
-	})
 	auditSvc := audit.NewAuditService(auditRepo)
+
+	notifRegistry, _, err := wiring.BuildRegistry(ctx, wiring.BuildConfig{
+		DefaultEmailProvider: cfg.DefaultEmailProvider,
+		DefaultSMSProvider:   cfg.DefaultSMSProvider,
+		SMTPHost:             cfg.SMTPHost,
+		SMTPPort:             cfg.SMTPPort,
+		SMTPUsername:         cfg.SMTPUsername,
+		SMTPPassword:         cfg.SMTPPassword,
+		SMTPFromAddress:      cfg.SMTPFromAddress,
+		SMTPFromName:         cfg.SMTPFromName,
+		SMTPUseTLS:           cfg.SMTPUseTLS,
+		SESRegion:            cfg.SESRegion,
+		SESFromAddress:       cfg.SESFromAddress,
+		SESFromName:          cfg.SESFromName,
+		SESAccessKeyID:       cfg.SESAccessKeyID,
+		SESSecretAccessKey:   cfg.SESSecretAccessKey,
+		SNSRegion:            cfg.SNSRegion,
+		SNSSenderID:          cfg.SNSSenderID,
+		SNSAccessKeyID:       cfg.SNSAccessKeyID,
+		SNSSecretAccessKey:   cfg.SNSSecretAccessKey,
+	})
+	if err != nil {
+		zap.L().Fatal("failed to build notification registry", zap.Error(err))
+	}
+	notifTemplates := notification.NewTemplateRegistry()
+	notifTemplates.RegisterEmail(templates.MFAEmailOTP)
+	notifTemplates.RegisterSMS(templates.MFASMSOTP)
+
+	notifier := notification.NewService(
+		notifRegistry,
+		notifTemplates,
+		namespaceResolverAdapter{repo: nsRepo},
+		auditEmitterAdapter{svc: auditSvc},
+	)
+
+	mfaSvc := authservice.NewMFAService(mfaRepo, notifier, cfg.AppName)
 
 	var rateLimiter ratelimit.RateLimiter
 	if cfg.RedisURI != "" {
@@ -138,7 +173,7 @@ func main() {
 	defer gwConn.Close()
 
 	gatewaySrv, err := server.NewGatewayServer(ctx, gwConn, server.UIConfig{
-		ApiBase: fmt.Sprintf("http://localhost:%d", cfg.Port),
+		ApiBase: fmt.Sprintf("http://localhost:%s", cfg.Port),
 		AppName: cfg.AppName,
 	})
 	if err != nil {
@@ -153,4 +188,47 @@ func main() {
 	}
 
 	logger.Info("Server exited gracefully")
+}
+
+// namespaceResolverAdapter adapts repository.NamespaceRepository to
+// notification.NamespaceResolver.
+type namespaceResolverAdapter struct {
+	repo repository.NamespaceRepository
+}
+
+func (a namespaceResolverAdapter) NotificationConfig(ctx context.Context, namespace string) (notification.NamespaceNotificationView, error) {
+	ns, err := a.repo.GetByName(ctx, namespace)
+	if err != nil {
+		return notification.NamespaceNotificationView{}, err
+	}
+	v := notification.NamespaceNotificationView{
+		EmailProvider: ns.Config.Notification.EmailProvider,
+		SMSProvider:   ns.Config.Notification.SMSProvider,
+	}
+	if len(ns.Config.Notification.EmailTemplates) > 0 {
+		v.EmailTemplates = make(map[string]notification.EmailTemplateOverride, len(ns.Config.Notification.EmailTemplates))
+		for k, o := range ns.Config.Notification.EmailTemplates {
+			v.EmailTemplates[k] = notification.EmailTemplateOverride{
+				Subject:  o.Subject,
+				HTMLBody: o.HTMLBody,
+				TextBody: o.TextBody,
+			}
+		}
+	}
+	if len(ns.Config.Notification.SMSTemplates) > 0 {
+		v.SMSTemplates = make(map[string]notification.SMSTemplateOverride, len(ns.Config.Notification.SMSTemplates))
+		for k, o := range ns.Config.Notification.SMSTemplates {
+			v.SMSTemplates[k] = notification.SMSTemplateOverride{Body: o.Body}
+		}
+	}
+	return v, nil
+}
+
+// auditEmitterAdapter adapts audit.AuditService to notification.AuditEmitter.
+type auditEmitterAdapter struct {
+	svc audit.AuditService
+}
+
+func (a auditEmitterAdapter) LogNotification(ctx context.Context, event, userID, namespace string, metadata any) {
+	a.svc.Log(ctx, domain.AuditEvent(event), userID, namespace, "", "", metadata)
 }

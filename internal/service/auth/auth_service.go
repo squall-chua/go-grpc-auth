@@ -2,10 +2,12 @@ package auth
 
 import (
 	"context"
+	"errors"
 
 	"github.com/squall-chua/go-grpc-auth/internal/domain"
 	"github.com/squall-chua/go-grpc-auth/internal/repository"
 	"github.com/squall-chua/go-grpc-auth/internal/service/audit"
+	"github.com/squall-chua/go-grpc-auth/internal/service/notification"
 	"github.com/squall-chua/go-grpc-auth/internal/service/ratelimit"
 	"github.com/squall-chua/go-grpc-auth/internal/service/token"
 	"github.com/squall-chua/go-grpc-auth/internal/service/webhook"
@@ -73,7 +75,7 @@ func (s *authService) Register(ctx context.Context, email, username, password, n
 
 	ns, err := s.nsRepo.GetByName(ctx, namespace)
 	if err == nil {
-		if err := ValidateIP(ip, ns.Config.IPAllowlist, ns.Config.IPDenylist); err != nil {
+		if err := ValidateIP(ip, ns.Config.IPAllowList, ns.Config.IPDenyList); err != nil {
 			return nil, err
 		}
 		if err := ValidatePassword(password, ns.Config.PasswordPolicy); err != nil {
@@ -174,7 +176,7 @@ func (s *authService) Login(ctx context.Context, login, password, namespace stri
 	// Check if MFA is required for this namespace
 	ns, err := s.nsRepo.GetByName(ctx, namespace)
 	if err == nil {
-		if err := ValidateIP(ip, ns.Config.IPAllowlist, ns.Config.IPDenylist); err != nil {
+		if err := ValidateIP(ip, ns.Config.IPAllowList, ns.Config.IPDenyList); err != nil {
 			s.auditService.Log(ctx, domain.EventLoginFailed, user.ID.Hex(), namespace, ip, ua, map[string]string{"reason": "ip_blocked"})
 			return nil, err
 		}
@@ -232,12 +234,7 @@ func (s *authService) ChangePassword(ctx context.Context, userID, currentPasswor
 		return status.Error(codes.Internal, "failed to hash password")
 	}
 
-	maxHistory := 0
-	if err == nil {
-		maxHistory = ns.Config.PasswordPolicy.PasswordHistory
-	}
-
-	if err := s.userRepo.UpdatePassword(ctx, userID, string(hash), maxHistory); err != nil {
+	if err := s.userRepo.UpdatePassword(ctx, userID, string(hash), ns.Config.PasswordPolicy.PasswordHistory); err != nil {
 		return status.Error(codes.Internal, "failed to update password")
 	}
 
@@ -261,18 +258,34 @@ func (s *authService) InitiateMFA(ctx context.Context, mfaTokenStr, method strin
 
 	switch domain.MFAMethod(method) {
 	case domain.MFAMethodEmail:
-		if err := s.mfaService.InitiateEmailOTP(ctx, user.ID.Hex(), user.Email); err != nil {
-			return "", "", status.Errorf(codes.Internal, "failed to initiate email OTP: %v", err)
+		if err := s.mfaService.InitiateEmailOTP(ctx, user.ID.Hex(), token.Namespace, user.Email); err != nil {
+			return "", "", notifyErrToStatus("failed to initiate email OTP", err)
 		}
 		return "", "", nil
 	case domain.MFAMethodSMS:
-		// Phone number would come from user profile; for now use empty string as placeholder
-		if err := s.mfaService.InitiateSMSOTP(ctx, user.ID.Hex(), ""); err != nil {
-			return "", "", status.Errorf(codes.Internal, "failed to initiate SMS OTP: %v", err)
+		// Phone number would come from user profile; for now use empty string as placeholder.
+		// Until the user profile carries a phone number, the SNS provider will return
+		// notification.ErrInvalidRecipient, which is the correct behavior.
+		if err := s.mfaService.InitiateSMSOTP(ctx, user.ID.Hex(), token.Namespace, ""); err != nil {
+			return "", "", notifyErrToStatus("failed to initiate SMS OTP", err)
 		}
 		return "", "", nil
 	default:
 		return s.mfaService.InitiateTOTP(ctx, user.ID.Hex(), s.issuer, user.Email)
+	}
+}
+
+// notifyErrToStatus maps notification package errors to gRPC status codes.
+func notifyErrToStatus(label string, err error) error {
+	switch {
+	case errors.Is(err, notification.ErrInvalidRecipient):
+		return status.Errorf(codes.InvalidArgument, "%s: invalid recipient: %v", label, err)
+	case errors.Is(err, notification.ErrProviderUnavailable):
+		return status.Errorf(codes.Unavailable, "%s: notification provider unavailable: %v", label, err)
+	case errors.Is(err, notification.ErrRateLimited):
+		return status.Errorf(codes.ResourceExhausted, "%s: rate limited: %v", label, err)
+	default:
+		return status.Errorf(codes.Internal, "%s: %v", label, err)
 	}
 }
 
