@@ -8,6 +8,10 @@ import "protoc-gen-openapiv2/options/annotations.proto";
 option go_package = "github.com/squall-chua/go-grpc-auth/api/v1/options;options";
 
 option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  info: {
+    title: "Auth API";
+    version: "v1";
+  };
   security_definitions: {
     security: {
       key: "Bearer";
