@@ -14,6 +14,7 @@ type Config struct {
 	RSAPrivateKeyPath string
 	RSAPublicKeyPath  string
 	Issuer            string
+	AppName           string
 	// Social Providers
 	GoogleClientID     string
 	GoogleClientSecret string
@@ -41,6 +42,7 @@ func Load() *Config {
 	flag.StringVar(&cfg.RSAPrivateKeyPath, "rsa-private-key", getEnv("RSA_PRIVATE_KEY", "keys/id_rs256"), "RSA private key path")
 	flag.StringVar(&cfg.RSAPublicKeyPath, "rsa-public-key", getEnv("RSA_PUBLIC_KEY", "keys/id_rs256.pub"), "RSA public key path")
 	flag.StringVar(&cfg.Issuer, "issuer", getEnv("ISSUER", "https://auth.example.com"), "Token issuer URL")
+	flag.StringVar(&cfg.AppName, "app-name", getEnv("APP_NAME", "Go"), "Application name displayed in the UI")
 
 	// Social
 	flag.StringVar(&cfg.GoogleClientID, "google-client-id", getEnv("GOOGLE_CLIENT_ID", ""), "Google Client ID")

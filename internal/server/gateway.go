@@ -5,12 +5,12 @@ import (
 	"net/http"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
-	"google.golang.org/protobuf/encoding/protojson"
 	"github.com/squall-chua/go-grpc-auth/api/swagger"
 	"github.com/squall-chua/go-grpc-auth/api/v1/admin"
 	"github.com/squall-chua/go-grpc-auth/api/v1/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func corsMiddleware(next http.Handler) http.Handler {
@@ -27,7 +27,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func NewGatewayServer(ctx context.Context, grpcPort string) (*http.Server, error) {
+func NewGatewayServer(ctx context.Context, grpcPort string, uiCfg UIConfig) (*http.Server, error) {
 	mux := runtime.NewServeMux(
 		runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.JSONPb{
 			MarshalOptions: protojson.MarshalOptions{
@@ -77,7 +77,7 @@ func NewGatewayServer(ctx context.Context, grpcPort string) (*http.Server, error
 	swagger.RegisterRoutes(handler)
 
 	// Serve Frontend SPA (Root fallback)
-	if err := ServeUI(handler); err != nil {
+	if err := ServeUI(handler, uiCfg); err != nil {
 		return nil, err
 	}
 

@@ -6,14 +6,49 @@ import (
 	"io/fs"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/squall-chua/go-grpc-auth/web"
 	"go.uber.org/zap"
 )
 
-func ServeUI(mux *http.ServeMux) error {
+type UIConfig struct {
+	ApiBase string
+	AppName string
+}
+
+var placeholders = map[string]func(UIConfig) string{
+	"__API_BASE_PLACEHOLDER__":  func(c UIConfig) string { return c.ApiBase },
+	"__APP_NAME_PLACEHOLDER__": func(c UIConfig) string { return c.AppName },
+}
+
+func patchedHTML(distFS fs.FS, cfg UIConfig) ([]byte, error) {
+	f, err := distFS.Open("index.html")
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	content, err := io.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+
+	for placeholder, valueFn := range placeholders {
+		content = bytes.ReplaceAll(content, []byte(placeholder), []byte(valueFn(cfg)))
+	}
+	return content, nil
+}
+
+func ServeUI(mux *http.ServeMux, cfg UIConfig) error {
 	distFS, err := fs.Sub(web.Assets, ".output/public")
 	if err != nil {
+		return nil
+	}
+
+	indexHTML, err := patchedHTML(distFS, cfg)
+	if err != nil {
+		zap.L().Warn("No embedded index.html; UI will not be served", zap.Error(err))
 		return nil
 	}
 
@@ -32,23 +67,9 @@ func ServeUI(mux *http.ServeMux) error {
 
 		f, err := distFS.Open(strings.TrimPrefix(path, "/"))
 		if err != nil {
-			// File not found, serve index.html for SPA routing
-			index, err := distFS.Open("index.html")
-			if err != nil {
-				zap.L().Error("Failed to open index.html", zap.Error(err))
-				http.NotFound(w, r)
-				return
-			}
-			defer index.Close()
-
-			content, err := io.ReadAll(index)
-			if err != nil {
-				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-				return
-			}
-
-			stat, _ := index.Stat()
-			http.ServeContent(w, r, "index.html", stat.ModTime(), bytes.NewReader(content))
+			// File not found, serve patched index.html for SPA routing
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			http.ServeContent(w, r, "index.html", time.Time{}, bytes.NewReader(indexHTML))
 			return
 		}
 		defer f.Close()

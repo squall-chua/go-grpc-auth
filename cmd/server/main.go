@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -116,7 +117,10 @@ func main() {
 		OIDCClientService: oidcClientSvc,
 	})
 
-	gatewaySrv, err := server.NewGatewayServer(ctx, cfg.Port)
+	gatewaySrv, err := server.NewGatewayServer(ctx, cfg.Port, server.UIConfig{
+		ApiBase: fmt.Sprintf("http://localhost:%d", cfg.Port),
+		AppName: cfg.AppName,
+	})
 	if err != nil {
 		logger.Fatal("Failed to create gateway server", zap.Error(err))
 	}
@@ -127,6 +131,6 @@ func main() {
 	if err := srv.Start(ctx); err != nil {
 		logger.Fatal("Server stopped with error", zap.Error(err))
 	}
-	
+
 	logger.Info("Server exited gracefully")
 }
