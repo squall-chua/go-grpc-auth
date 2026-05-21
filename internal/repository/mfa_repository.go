@@ -13,6 +13,7 @@ type MFARepository interface {
 	UpsertSecret(ctx context.Context, secret *domain.MFASecret) error
 	GetSecret(ctx context.Context, userID string, method domain.MFAMethod) (*domain.MFASecret, error)
 	DeleteSecret(ctx context.Context, userID string, method domain.MFAMethod) error
+	ListEnrolledMethods(ctx context.Context, userID string) ([]domain.MFAMethod, error)
 
 	CreateToken(ctx context.Context, token *domain.MFAToken) error
 	GetToken(ctx context.Context, tokenStr string) (*domain.MFAToken, error)
@@ -60,6 +61,21 @@ func (r *mongoMFARepository) DeleteSecret(ctx context.Context, userID string, me
 		gmqb.Eq(r.fs("Method"), method),
 	))
 	return err
+}
+
+func (r *mongoMFARepository) ListEnrolledMethods(ctx context.Context, userID string) ([]domain.MFAMethod, error) {
+	secrets, err := r.secrets.Find(ctx, gmqb.And(
+		gmqb.Eq(r.fs("UserID"), userID),
+		gmqb.Eq(r.fs("Confirmed"), true),
+	))
+	if err != nil {
+		return nil, err
+	}
+	methods := make([]domain.MFAMethod, 0, len(secrets))
+	for _, s := range secrets {
+		methods = append(methods, s.Method)
+	}
+	return methods, nil
 }
 
 func (r *mongoMFARepository) CreateToken(ctx context.Context, token *domain.MFAToken) error {

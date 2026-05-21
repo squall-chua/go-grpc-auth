@@ -47,8 +47,24 @@ func AuthUnaryInterceptor(authService authservice.AuthService) grpc.UnaryServerI
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		rule := methodRules[info.FullMethod]
 
-		// 1. Skip auth if public
+		// 1. Public endpoints: auth not required, but populate principal
+		//    opportunistically if a valid Bearer token is present.
 		if rule != nil && rule.Public {
+			if md, ok := metadata.FromIncomingContext(ctx); ok {
+				if authHeader := md.Get("authorization"); len(authHeader) > 0 {
+					if parts := strings.Split(authHeader[0], " "); len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
+						if p, err := authService.ValidateToken(ctx, parts[1]); err == nil {
+							ctx = util.WithPrincipal(ctx, &auth.Principal{
+								UserId:      p.UserID,
+								Namespace:   p.Namespace,
+								Roles:       p.Roles,
+								Permissions: p.Permissions,
+								ExpiresAt:   p.ExpiresAt,
+							})
+						}
+					}
+				}
+			}
 			return handler(ctx, req)
 		}
 

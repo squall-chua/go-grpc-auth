@@ -502,6 +502,29 @@
         ]
       }
     },
+    "/v1/admin/notification/providers": {
+      "get": {
+        "summary": "Notification",
+        "operationId": "AdminService_ListNotificationProviders",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListNotificationProvidersResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "AdminService"
+        ]
+      }
+    },
     "/v1/admin/oidc/clients": {
       "get": {
         "operationId": "OIDCClientService_ListClients",
@@ -1341,6 +1364,98 @@
         ]
       }
     },
+    "/v1/auth/mfa/methods": {
+      "get": {
+        "operationId": "AuthService_ListMFAMethods",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListMFAMethodsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "AuthService"
+        ]
+      }
+    },
+    "/v1/auth/mfa/methods/{method}": {
+      "delete": {
+        "operationId": "AuthService_RemoveMFAMethod",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "method",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AuthService"
+        ]
+      }
+    },
+    "/v1/auth/mfa/methods/{method}/enable": {
+      "post": {
+        "operationId": "AuthService_EnableMFAMethod",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "method",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AuthServiceEnableMFAMethodBody"
+            }
+          }
+        ],
+        "tags": [
+          "AuthService"
+        ]
+      }
+    },
     "/v1/auth/mfa/verify": {
       "post": {
         "operationId": "AuthService_VerifyMFA",
@@ -1870,6 +1985,9 @@
         }
       }
     },
+    "AuthServiceEnableMFAMethodBody": {
+      "type": "object"
+    },
     "NamespaceServiceUpdateNamespaceConfigBody": {
       "type": "object",
       "properties": {
@@ -2059,6 +2177,20 @@
         }
       }
     },
+    "v1EmailTemplateOverride": {
+      "type": "object",
+      "properties": {
+        "subject": {
+          "type": "string"
+        },
+        "htmlBody": {
+          "type": "string"
+        },
+        "textBody": {
+          "type": "string"
+        }
+      }
+    },
     "v1HelloRequest": {
       "type": "object",
       "properties": {
@@ -2094,6 +2226,9 @@
           "type": "string"
         },
         "qrCodeUrl": {
+          "type": "string"
+        },
+        "maskedRecipient": {
           "type": "string"
         }
       }
@@ -2138,6 +2273,18 @@
         }
       }
     },
+    "v1ListMFAMethodsResponse": {
+      "type": "object",
+      "properties": {
+        "methods": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MFAMethodStatus"
+          }
+        }
+      }
+    },
     "v1ListNamespacesResponse": {
       "type": "object",
       "properties": {
@@ -2155,6 +2302,23 @@
         "totalCount": {
           "type": "integer",
           "format": "int32"
+        }
+      }
+    },
+    "v1ListNotificationProvidersResponse": {
+      "type": "object",
+      "properties": {
+        "emailProviders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "smsProviders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -2241,6 +2405,29 @@
         }
       }
     },
+    "v1MFAMethodStatus": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string"
+        },
+        "enrolled": {
+          "type": "boolean"
+        },
+        "available": {
+          "type": "boolean"
+        }
+      }
+    },
+    "v1MFAPolicy": {
+      "type": "string",
+      "enum": [
+        "MFA_POLICY_DISABLED",
+        "MFA_POLICY_OPTIONAL",
+        "MFA_POLICY_REQUIRED"
+      ],
+      "default": "MFA_POLICY_DISABLED"
+    },
     "v1Namespace": {
       "type": "object",
       "properties": {
@@ -2258,8 +2445,8 @@
     "v1NamespaceConfig": {
       "type": "object",
       "properties": {
-        "mfaRequired": {
-          "type": "boolean"
+        "mfaPolicy": {
+          "$ref": "#/definitions/v1MFAPolicy"
         },
         "allowedSocialProviders": {
           "type": "array",
@@ -2269,6 +2456,50 @@
         },
         "passwordPolicy": {
           "$ref": "#/definitions/v1PasswordPolicy"
+        },
+        "ipAllowlist": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ipDenylist": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "webhookUrl": {
+          "type": "string"
+        },
+        "webhookSecret": {
+          "type": "string"
+        },
+        "notification": {
+          "$ref": "#/definitions/v1NotificationConfig"
+        }
+      }
+    },
+    "v1NotificationConfig": {
+      "type": "object",
+      "properties": {
+        "emailProvider": {
+          "type": "string"
+        },
+        "smsProvider": {
+          "type": "string"
+        },
+        "emailTemplates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/v1EmailTemplateOverride"
+          }
+        },
+        "smsTemplates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/v1SMSTemplateOverride"
+          }
         }
       }
     },
@@ -2460,6 +2691,14 @@
         }
       }
     },
+    "v1SMSTemplateOverride": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "string"
+        }
+      }
+    },
     "v1SocialAuthURLResponse": {
       "type": "object",
       "properties": {
@@ -2492,6 +2731,12 @@
         },
         "mfaToken": {
           "type": "string"
+        },
+        "mfaMethods": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },

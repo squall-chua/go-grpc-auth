@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,18 +15,28 @@ import (
 	"github.com/squall-chua/go-grpc-auth/internal/service/notification"
 )
 
+type MFAMethodStatus struct {
+	Method    string
+	Enrolled  bool
+	Available bool
+}
+
 type MFAService interface {
 	InitiateTOTP(ctx context.Context, userID string, issuer string, accountName string) (secret string, qrCodeURL string, err error)
 	VerifyTOTP(ctx context.Context, userID string, code string) (bool, error)
 
-	InitiateEmailOTP(ctx context.Context, userID, namespace, email string) error
+	InitiateEmailOTP(ctx context.Context, userID, namespace, email string) (string, error)
 	VerifyEmailOTP(ctx context.Context, userID string, code string) (bool, error)
 
-	InitiateSMSOTP(ctx context.Context, userID, namespace, phoneNumber string) error
+	InitiateSMSOTP(ctx context.Context, userID, namespace, phoneNumber string) (string, error)
 	VerifySMSOTP(ctx context.Context, userID string, code string) (bool, error)
 
 	CreateMFAToken(ctx context.Context, userID string, namespace string, method domain.MFAMethod) (string, error)
 	VerifyMFAToken(ctx context.Context, tokenStr string) (*domain.MFAToken, error)
+
+	ListMethods(ctx context.Context, userID string) ([]MFAMethodStatus, error)
+	EnableMethod(ctx context.Context, userID, method string) error
+	RemoveMethod(ctx context.Context, userID string, method domain.MFAMethod) error
 }
 
 type mfaService struct {
@@ -81,10 +92,10 @@ func (s *mfaService) VerifyTOTP(ctx context.Context, userID string, code string)
 	return valid, nil
 }
 
-func (s *mfaService) InitiateEmailOTP(ctx context.Context, userID, namespace, email string) error {
+func (s *mfaService) InitiateEmailOTP(ctx context.Context, userID, namespace, email string) (string, error) {
 	code, err := generateOTPCode(6)
 	if err != nil {
-		return fmt.Errorf("failed to generate OTP: %w", err)
+		return "", fmt.Errorf("failed to generate OTP: %w", err)
 	}
 
 	secret := &domain.MFASecret{
@@ -96,7 +107,7 @@ func (s *mfaService) InitiateEmailOTP(ctx context.Context, userID, namespace, em
 		UpdatedAt: time.Now().UTC(),
 	}
 	if err := s.repo.UpsertSecret(ctx, secret); err != nil {
-		return fmt.Errorf("failed to store email OTP: %w", err)
+		return "", fmt.Errorf("failed to store email OTP: %w", err)
 	}
 
 	if err := s.notifier.SendEmail(ctx, namespace, userID, "mfa_email_otp", email, map[string]any{
@@ -106,19 +117,19 @@ func (s *mfaService) InitiateEmailOTP(ctx context.Context, userID, namespace, em
 	}); err != nil {
 		// Roll back the stored OTP so a failed delivery does not leave a guessable secret.
 		s.repo.DeleteSecret(ctx, userID, domain.MFAMethodEmail)
-		return err
+		return "", err
 	}
-	return nil
+	return maskEmail(email), nil
 }
 
 func (s *mfaService) VerifyEmailOTP(ctx context.Context, userID string, code string) (bool, error) {
 	return s.verifyOTP(ctx, userID, domain.MFAMethodEmail, code)
 }
 
-func (s *mfaService) InitiateSMSOTP(ctx context.Context, userID, namespace, phoneNumber string) error {
+func (s *mfaService) InitiateSMSOTP(ctx context.Context, userID, namespace, phoneNumber string) (string, error) {
 	code, err := generateOTPCode(6)
 	if err != nil {
-		return fmt.Errorf("failed to generate OTP: %w", err)
+		return "", fmt.Errorf("failed to generate OTP: %w", err)
 	}
 
 	secret := &domain.MFASecret{
@@ -130,7 +141,7 @@ func (s *mfaService) InitiateSMSOTP(ctx context.Context, userID, namespace, phon
 		UpdatedAt: time.Now().UTC(),
 	}
 	if err := s.repo.UpsertSecret(ctx, secret); err != nil {
-		return fmt.Errorf("failed to store SMS OTP: %w", err)
+		return "", fmt.Errorf("failed to store SMS OTP: %w", err)
 	}
 
 	if err := s.notifier.SendSMS(ctx, namespace, userID, "mfa_sms_otp", phoneNumber, map[string]any{
@@ -138,9 +149,9 @@ func (s *mfaService) InitiateSMSOTP(ctx context.Context, userID, namespace, phon
 		"TTLMinutes": 5,
 	}); err != nil {
 		s.repo.DeleteSecret(ctx, userID, domain.MFAMethodSMS)
-		return err
+		return "", err
 	}
-	return nil
+	return maskPhone(phoneNumber), nil
 }
 
 func (s *mfaService) VerifySMSOTP(ctx context.Context, userID string, code string) (bool, error) {
@@ -176,6 +187,66 @@ func generateOTPCode(length int) (string, error) {
 		code += fmt.Sprintf("%d", n.Int64())
 	}
 	return code, nil
+}
+
+func maskEmail(email string) string {
+	parts := strings.SplitN(email, "@", 2)
+	if len(parts) != 2 || len(parts[0]) == 0 {
+		return "***"
+	}
+	name := parts[0]
+	if len(name) <= 2 {
+		return name[:1] + "***@" + parts[1]
+	}
+	return name[:1] + strings.Repeat("*", len(name)-2) + name[len(name)-1:] + "@" + parts[1]
+}
+
+func maskPhone(phone string) string {
+	if len(phone) <= 4 {
+		return "****"
+	}
+	return phone[:len(phone)-4] + " ****"
+}
+
+func (s *mfaService) ListMethods(ctx context.Context, userID string) ([]MFAMethodStatus, error) {
+	methods, err := s.repo.ListEnrolledMethods(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	enrolled := make(map[domain.MFAMethod]bool)
+	for _, m := range methods {
+		enrolled[m] = true
+	}
+	return []MFAMethodStatus{
+		{Method: "totp", Enrolled: enrolled[domain.MFAMethodTOTP], Available: true},
+		{Method: "email", Enrolled: enrolled[domain.MFAMethodEmail], Available: true},
+		{Method: "sms", Enrolled: enrolled[domain.MFAMethodSMS], Available: false},
+	}, nil
+}
+
+func (s *mfaService) EnableMethod(ctx context.Context, userID, method string) error {
+	switch domain.MFAMethod(method) {
+	case domain.MFAMethodEmail:
+		secret := &domain.MFASecret{
+			UserID:    userID,
+			Method:    domain.MFAMethodEmail,
+			Secret:    "",
+			Confirmed: true,
+			CreatedAt: time.Now().UTC(),
+			UpdatedAt: time.Now().UTC(),
+		}
+		return s.repo.UpsertSecret(ctx, secret)
+	case domain.MFAMethodSMS:
+		return fmt.Errorf("SMS MFA requires a phone number on the user profile")
+	case domain.MFAMethodTOTP:
+		return fmt.Errorf("use InitiateMFA + VerifyMFA to set up TOTP")
+	default:
+		return fmt.Errorf("unknown MFA method: %s", method)
+	}
+}
+
+func (s *mfaService) RemoveMethod(ctx context.Context, userID string, method domain.MFAMethod) error {
+	return s.repo.DeleteSecret(ctx, userID, method)
 }
 
 func (s *mfaService) CreateMFAToken(ctx context.Context, userID string, namespace string, method domain.MFAMethod) (string, error) {

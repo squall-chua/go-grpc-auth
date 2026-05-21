@@ -7,6 +7,8 @@ import (
 	"github.com/squall-chua/go-grpc-auth/internal/domain"
 	authservice "github.com/squall-chua/go-grpc-auth/internal/service/auth"
 	"github.com/squall-chua/go-grpc-auth/internal/util"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -50,6 +52,7 @@ func (s *authGRPCServer) Register(ctx context.Context, req *auth.RegisterRequest
 		ExpiresIn:    int32(pair.ExpiresIn),
 		MfaRequired:  pair.MFARequired,
 		MfaToken:     pair.MFAToken,
+		MfaMethods:   pair.MFAMethods,
 	}, nil
 }
 
@@ -65,6 +68,7 @@ func (s *authGRPCServer) Login(ctx context.Context, req *auth.LoginRequest) (*au
 		ExpiresIn:    int32(pair.ExpiresIn),
 		MfaRequired:  pair.MFARequired,
 		MfaToken:     pair.MFAToken,
+		MfaMethods:   pair.MFAMethods,
 	}, nil
 }
 
@@ -115,17 +119,40 @@ func (s *authGRPCServer) ValidateToken(ctx context.Context, req *auth.ValidateTo
 }
 
 func (s *authGRPCServer) InitiateMFA(ctx context.Context, req *auth.InitiateMFARequest) (*auth.InitiateMFAResponse, error) {
-	secret, qrURL, err := s.service.InitiateMFA(ctx, req.MfaToken, req.Method)
+	var secret, qrCodeURL, maskedRecipient string
+	var err error
+
+	if req.MfaToken != "" {
+		secret, qrCodeURL, maskedRecipient, err = s.service.InitiateMFA(ctx, req.MfaToken, req.Method)
+	} else {
+		p := util.GetPrincipal(ctx)
+		if p == nil {
+			return nil, status.Error(codes.Unauthenticated, "authentication required")
+		}
+		secret, qrCodeURL, maskedRecipient, err = s.service.InitiateMFAForUser(ctx, p.UserId, req.Method)
+	}
 	if err != nil {
 		return nil, err
 	}
 	return &auth.InitiateMFAResponse{
-		Secret:    secret,
-		QrCodeUrl: qrURL,
+		Secret:          secret,
+		QrCodeUrl:       qrCodeURL,
+		MaskedRecipient: maskedRecipient,
 	}, nil
 }
 
 func (s *authGRPCServer) VerifyMFA(ctx context.Context, req *auth.VerifyMFARequest) (*auth.TokenPair, error) {
+	if req.MfaToken == "" {
+		p := util.GetPrincipal(ctx)
+		if p == nil {
+			return nil, status.Error(codes.Unauthenticated, "authentication required")
+		}
+		if err := s.service.VerifyMFAForUser(ctx, p.UserId, req.Code); err != nil {
+			return nil, err
+		}
+		return &auth.TokenPair{}, nil
+	}
+
 	pair, err := s.service.VerifyMFA(ctx, req.MfaToken, req.Code)
 	if err != nil {
 		return nil, err
@@ -136,4 +163,46 @@ func (s *authGRPCServer) VerifyMFA(ctx context.Context, req *auth.VerifyMFAReque
 		IdToken:      pair.IDToken,
 		ExpiresIn:    int32(pair.ExpiresIn),
 	}, nil
+}
+
+func (s *authGRPCServer) ListMFAMethods(ctx context.Context, req *auth.ListMFAMethodsRequest) (*auth.ListMFAMethodsResponse, error) {
+	p := util.GetPrincipal(ctx)
+	if p == nil {
+		return nil, status.Error(codes.Unauthenticated, "not authenticated")
+	}
+	methods, err := s.service.ListMFAMethods(ctx, p.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to list MFA methods: %v", err)
+	}
+	var statuses []*auth.MFAMethodStatus
+	for _, m := range methods {
+		statuses = append(statuses, &auth.MFAMethodStatus{
+			Method:    m.Method,
+			Enrolled:  m.Enrolled,
+			Available: m.Available,
+		})
+	}
+	return &auth.ListMFAMethodsResponse{Methods: statuses}, nil
+}
+
+func (s *authGRPCServer) RemoveMFAMethod(ctx context.Context, req *auth.RemoveMFAMethodRequest) (*emptypb.Empty, error) {
+	p := util.GetPrincipal(ctx)
+	if p == nil {
+		return nil, status.Error(codes.Unauthenticated, "not authenticated")
+	}
+	if err := s.service.RemoveMFAMethod(ctx, p.UserId, domain.MFAMethod(req.Method)); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to remove MFA method: %v", err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (s *authGRPCServer) EnableMFAMethod(ctx context.Context, req *auth.EnableMFAMethodRequest) (*emptypb.Empty, error) {
+	p := util.GetPrincipal(ctx)
+	if p == nil {
+		return nil, status.Error(codes.Unauthenticated, "not authenticated")
+	}
+	if err := s.service.EnableMFAMethod(ctx, p.UserId, req.Method); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to enable MFA method: %v", err)
+	}
+	return &emptypb.Empty{}, nil
 }

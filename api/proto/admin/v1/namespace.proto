@@ -2,9 +2,9 @@ syntax = "proto3";
 
 package admin.v1;
 
+import "api/proto/options/v1/auth_rule.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
-import "api/proto/options/v1/auth_rule.proto";
 
 option go_package = "github.com/squall-chua/go-grpc-auth/api/v1/admin;admin";
 
@@ -20,9 +20,7 @@ service NamespaceService {
   }
 
   rpc GetNamespace(GetNamespaceRequest) returns (Namespace) {
-    option (google.api.http) = {
-      get: "/v1/admin/namespaces/{id}"
-    };
+    option (google.api.http) = {get: "/v1/admin/namespaces/{id}"};
     option (options.v1.rule) = {
       roles: ["superadmin"]
     };
@@ -39,18 +37,14 @@ service NamespaceService {
   }
 
   rpc ListNamespaces(ListNamespacesRequest) returns (ListNamespacesResponse) {
-    option (google.api.http) = {
-      get: "/v1/admin/namespaces"
-    };
+    option (google.api.http) = {get: "/v1/admin/namespaces"};
     option (options.v1.rule) = {
       roles: ["superadmin"]
     };
   }
 
   rpc DeleteNamespace(DeleteNamespaceRequest) returns (google.protobuf.Empty) {
-    option (google.api.http) = {
-      delete: "/v1/admin/namespaces/{id}"
-    };
+    option (google.api.http) = {delete: "/v1/admin/namespaces/{id}"};
     option (options.v1.rule) = {
       roles: ["superadmin"]
     };
@@ -63,10 +57,38 @@ message Namespace {
   NamespaceConfig config = 3;
 }
 
+enum MFAPolicy {
+  MFA_POLICY_DISABLED = 0;
+  MFA_POLICY_OPTIONAL = 1;
+  MFA_POLICY_REQUIRED = 2;
+}
+
 message NamespaceConfig {
-  bool mfa_required = 1;
+  MFAPolicy mfa_policy = 1;
   repeated string allowed_social_providers = 2;
   PasswordPolicy password_policy = 3;
+  repeated string ip_allowlist = 4;
+  repeated string ip_denylist = 5;
+  string webhook_url = 6;
+  string webhook_secret = 7;
+  NotificationConfig notification = 8;
+}
+
+message NotificationConfig {
+  string email_provider = 1;
+  string sms_provider = 2;
+  map<string, EmailTemplateOverride> email_templates = 3;
+  map<string, SMSTemplateOverride> sms_templates = 4;
+}
+
+message EmailTemplateOverride {
+  string subject = 1;
+  string html_body = 2;
+  string text_body = 3;
+}
+
+message SMSTemplateOverride {
+  string body = 1;
 }
 
 message PasswordPolicy {

@@ -88,3 +88,21 @@ func (r *Registry) PickSMS(preferred string) (SMSSender, string, error) {
 	}
 	return s, r.defaultSMS, nil
 }
+
+// EmailProviderNames returns the names of all registered email providers.
+func (r *Registry) EmailProviderNames() []string {
+	names := make([]string, 0, len(r.email))
+	for name := range r.email {
+		names = append(names, name)
+	}
+	return names
+}
+
+// SMSProviderNames returns the names of all registered SMS providers.
+func (r *Registry) SMSProviderNames() []string {
+	names := make([]string, 0, len(r.sms))
+	for name := range r.sms {
+		names = append(names, name)
+	}
+	return names
+}

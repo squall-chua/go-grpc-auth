@@ -26,8 +26,14 @@ type AuthService interface {
 	ChangePassword(ctx context.Context, userID, currentPassword, newPassword string) error
 	ValidateToken(ctx context.Context, token string) (*domain.Principal, error)
 
-	InitiateMFA(ctx context.Context, mfaToken, method string) (secret, qrCodeURL string, err error)
+	InitiateMFA(ctx context.Context, mfaToken, method string) (secret, qrCodeURL, maskedRecipient string, err error)
 	VerifyMFA(ctx context.Context, mfaToken, code string) (*domain.TokenPair, error)
+
+	InitiateMFAForUser(ctx context.Context, userID, method string) (secret, qrCodeURL, maskedRecipient string, err error)
+	VerifyMFAForUser(ctx context.Context, userID, code string) error
+	ListMFAMethods(ctx context.Context, userID string) ([]MFAMethodStatus, error)
+	EnableMFAMethod(ctx context.Context, userID, method string) error
+	RemoveMFAMethod(ctx context.Context, userID string, method domain.MFAMethod) error
 }
 
 type authService struct {
@@ -120,17 +126,8 @@ func (s *authService) Register(ctx context.Context, email, username, password, n
 	s.auditService.Log(ctx, domain.EventRegisterSuccess, user.ID.Hex(), namespace, util.GetClientIP(ctx), util.GetUserAgent(ctx), nil)
 	s.webhookSvc.Notify(ctx, namespace, domain.EventRegisterSuccess, map[string]string{"user_id": user.ID.Hex(), "username": user.Username})
 
-	// Check if MFA is required for this namespace
-	if ns.Config.MFARequired {
-		mfaToken, err := s.mfaService.CreateMFAToken(ctx, user.ID.Hex(), namespace, domain.MFAMethodTOTP)
-		if err != nil {
-			return nil, status.Error(codes.Internal, "failed to create MFA token")
-		}
-		s.auditService.Log(ctx, domain.EventMFAChallenge, user.ID.Hex(), namespace, util.GetClientIP(ctx), util.GetUserAgent(ctx), nil)
-		return &domain.TokenPair{
-			MFARequired: true,
-			MFAToken:    mfaToken,
-		}, nil
+	if pair, err := s.checkMFAChallenge(ctx, user, ns, util.GetClientIP(ctx), util.GetUserAgent(ctx)); pair != nil || err != nil {
+		return pair, err
 	}
 
 	return s.tokenService.GenerateTokenPair(ctx, user, "", nil)
@@ -182,16 +179,8 @@ func (s *authService) Login(ctx context.Context, login, password, namespace stri
 		}
 	}
 
-	if err == nil && ns.Config.MFARequired {
-		mfaToken, err := s.mfaService.CreateMFAToken(ctx, user.ID.Hex(), namespace, domain.MFAMethodTOTP)
-		if err != nil {
-			return nil, status.Error(codes.Internal, "failed to create MFA token")
-		}
-		s.auditService.Log(ctx, domain.EventMFAChallenge, user.ID.Hex(), namespace, ip, ua, nil)
-		return &domain.TokenPair{
-			MFARequired: true,
-			MFAToken:    mfaToken,
-		}, nil
+	if pair, err := s.checkMFAChallenge(ctx, user, ns, ip, ua); pair != nil || err != nil {
+		return pair, err
 	}
 
 	s.auditService.Log(ctx, domain.EventLoginSuccess, user.ID.Hex(), namespace, ip, ua, nil)
@@ -245,34 +234,116 @@ func (s *authService) ValidateToken(ctx context.Context, token string) (*domain.
 	return s.tokenService.ValidateAccessToken(ctx, token)
 }
 
-func (s *authService) InitiateMFA(ctx context.Context, mfaTokenStr, method string) (string, string, error) {
+// checkMFAChallenge decides whether to issue an MFA challenge based on the
+// namespace's MFA policy and the user's enrolled methods.
+//   - "required": always challenge (even if no methods enrolled — the MFA page
+//     will show available methods to set up)
+//   - "optional": challenge only if the user has at least one enrolled method
+//   - "disabled" / "": skip MFA
+//
+// Returns (nil, nil) when no challenge is needed.
+func (s *authService) checkMFAChallenge(ctx context.Context, user *domain.User, ns *domain.Namespace, ip, ua string) (*domain.TokenPair, error) {
+	if ns == nil {
+		return nil, nil
+	}
+
+	policy := ns.Config.MFAPolicy
+	if policy == domain.MFAPolicyDisabled || policy == "" {
+		return nil, nil
+	}
+
+	methods, _ := s.mfaService.ListMethods(ctx, user.ID.Hex())
+	var enrolledNames []string
+	for _, m := range methods {
+		if m.Enrolled {
+			enrolledNames = append(enrolledNames, m.Method)
+		}
+	}
+
+	if policy == domain.MFAPolicyOptional && len(enrolledNames) == 0 {
+		return nil, nil
+	}
+
+	mfaToken, err := s.mfaService.CreateMFAToken(ctx, user.ID.Hex(), ns.Name, domain.MFAMethodTOTP)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to create MFA token")
+	}
+	s.auditService.Log(ctx, domain.EventMFAChallenge, user.ID.Hex(), ns.Name, ip, ua, nil)
+
+	return &domain.TokenPair{
+		MFARequired: true,
+		MFAToken:    mfaToken,
+		MFAMethods:  enrolledNames,
+	}, nil
+}
+
+func (s *authService) InitiateMFA(ctx context.Context, mfaTokenStr, method string) (string, string, string, error) {
 	token, err := s.mfaService.VerifyMFAToken(ctx, mfaTokenStr)
 	if err != nil {
-		return "", "", status.Error(codes.Unauthenticated, "invalid MFA token")
+		return "", "", "", status.Error(codes.Unauthenticated, "invalid MFA token")
 	}
 
 	user, err := s.userRepo.GetByID(ctx, token.UserID)
 	if err != nil {
-		return "", "", status.Error(codes.NotFound, "user not found")
+		return "", "", "", status.Error(codes.NotFound, "user not found")
 	}
 
+	return s.initiateMFAForUser(ctx, user, token.Namespace, method)
+}
+
+func (s *authService) InitiateMFAForUser(ctx context.Context, userID, method string) (string, string, string, error) {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return "", "", "", status.Error(codes.NotFound, "user not found")
+	}
+
+	return s.initiateMFAForUser(ctx, user, user.Namespace, method)
+}
+
+func (s *authService) initiateMFAForUser(ctx context.Context, user *domain.User, namespace, method string) (string, string, string, error) {
 	switch domain.MFAMethod(method) {
 	case domain.MFAMethodEmail:
-		if err := s.mfaService.InitiateEmailOTP(ctx, user.ID.Hex(), token.Namespace, user.Email); err != nil {
-			return "", "", notifyErrToStatus("failed to initiate email OTP", err)
+		masked, err := s.mfaService.InitiateEmailOTP(ctx, user.ID.Hex(), namespace, user.Email)
+		if err != nil {
+			return "", "", "", notifyErrToStatus("failed to initiate email OTP", err)
 		}
-		return "", "", nil
+		return "", "", masked, nil
 	case domain.MFAMethodSMS:
-		// Phone number would come from user profile; for now use empty string as placeholder.
-		// Until the user profile carries a phone number, the SNS provider will return
-		// notification.ErrInvalidRecipient, which is the correct behavior.
-		if err := s.mfaService.InitiateSMSOTP(ctx, user.ID.Hex(), token.Namespace, ""); err != nil {
-			return "", "", notifyErrToStatus("failed to initiate SMS OTP", err)
+		masked, err := s.mfaService.InitiateSMSOTP(ctx, user.ID.Hex(), namespace, "")
+		if err != nil {
+			return "", "", "", notifyErrToStatus("failed to initiate SMS OTP", err)
 		}
-		return "", "", nil
+		return "", "", masked, nil
 	default:
-		return s.mfaService.InitiateTOTP(ctx, user.ID.Hex(), s.issuer, user.Email)
+		secret, qr, err := s.mfaService.InitiateTOTP(ctx, user.ID.Hex(), s.issuer, user.Email)
+		if err != nil {
+			return "", "", "", err
+		}
+		return secret, qr, "", nil
 	}
+}
+
+func (s *authService) VerifyMFAForUser(ctx context.Context, userID, code string) error {
+	valid, err := s.mfaService.VerifyTOTP(ctx, userID, code)
+	if err != nil {
+		return status.Error(codes.Internal, "verification failed")
+	}
+	if !valid {
+		return status.Error(codes.InvalidArgument, "invalid code")
+	}
+	return nil
+}
+
+func (s *authService) ListMFAMethods(ctx context.Context, userID string) ([]MFAMethodStatus, error) {
+	return s.mfaService.ListMethods(ctx, userID)
+}
+
+func (s *authService) EnableMFAMethod(ctx context.Context, userID, method string) error {
+	return s.mfaService.EnableMethod(ctx, userID, method)
+}
+
+func (s *authService) RemoveMFAMethod(ctx context.Context, userID string, method domain.MFAMethod) error {
+	return s.mfaService.RemoveMethod(ctx, userID, method)
 }
 
 // notifyErrToStatus maps notification package errors to gRPC status codes.

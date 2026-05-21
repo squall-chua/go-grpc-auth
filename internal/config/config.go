@@ -40,16 +40,16 @@ type Config struct {
 	SMTPUseTLS      bool
 
 	// SES — enabled when SESRegion != ""
-	SESRegion         string
-	SESFromAddress    string
-	SESFromName       string
-	SESAccessKeyID    string
+	SESRegion          string
+	SESFromAddress     string
+	SESFromName        string
+	SESAccessKeyID     string
 	SESSecretAccessKey string
 
 	// SNS — enabled when SNSRegion != ""
-	SNSRegion         string
-	SNSSenderID       string
-	SNSAccessKeyID    string
+	SNSRegion          string
+	SNSSenderID        string
+	SNSAccessKeyID     string
 	SNSSecretAccessKey string
 }
 
@@ -60,7 +60,7 @@ func Load() Config {
 	flag.StringVar(&cfg.RedisURI, "redis-uri", getEnv("REDIS_URI", "localhost:6379"), "Redis URI (optional)")
 	flag.StringVar(&cfg.RSAPrivateKeyPath, "rsa-private-key", getEnv("RSA_PRIVATE_KEY", "keys/id_rs256"), "RSA private key path")
 	flag.StringVar(&cfg.RSAPublicKeyPath, "rsa-public-key", getEnv("RSA_PUBLIC_KEY", "keys/id_rs256.pub"), "RSA public key path")
-	flag.StringVar(&cfg.Issuer, "issuer", getEnv("ISSUER", "https://auth.example.com"), "Token issuer URL")
+	flag.StringVar(&cfg.Issuer, "issuer", getEnv("ISSUER", "Go-Auth"), "Token issuer URL")
 	flag.StringVar(&cfg.AppName, "app-name", getEnv("APP_NAME", "Go"), "Application name displayed in the UI")
 
 	flag.StringVar(&cfg.GoogleClientID, "google-client-id", getEnv("GOOGLE_CLIENT_ID", ""), "Google Client ID")

@@ -52,7 +52,7 @@ func (s *Server) Start(ctx context.Context) error {
 		// Shutdown HTTP server with timeout
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		
+
 		if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
 			zap.L().Error("HTTP server shutdown error", zap.Error(err))
 		}

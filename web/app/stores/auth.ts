@@ -17,6 +17,7 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
   const mfaToken = ref<string | null>(null)
   const mfaRequired = ref(false)
+  const mfaMethods = ref<string[]>([])
 
   const isAuthenticated = computed(() => !!token.value && !!user.value)
 
@@ -41,8 +42,9 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function setMFARequired(mfaTokenStr: string) {
+  function setMFARequired(mfaTokenStr: string, methods: string[]) {
     mfaToken.value = mfaTokenStr
+    mfaMethods.value = methods
     mfaRequired.value = true
   }
 
@@ -66,6 +68,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     mfaToken.value = null
     mfaRequired.value = false
+    mfaMethods.value = []
     if (typeof window !== 'undefined') {
       localStorage.removeItem('auth_user')
     }
@@ -97,6 +100,7 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     mfaToken,
     mfaRequired,
+    mfaMethods,
     isAuthenticated,
     setTokens,
     setUser,

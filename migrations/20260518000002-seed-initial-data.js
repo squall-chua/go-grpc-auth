@@ -6,7 +6,7 @@ module.exports = {
     await db.collection("namespaces").insertOne({
       name: "default",
       config: {
-        mfa_required: false,
+        mfa_policy: "disabled",
         allowed_social_providers: [],
         password_policy: {
           min_length: 8,

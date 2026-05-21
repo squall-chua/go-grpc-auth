@@ -8,8 +8,20 @@ type Namespace struct {
 	Config NamespaceConfig `bson:"config"`
 }
 
+// MFAPolicy controls when users are challenged for MFA on login.
+//   - "required": all users must complete MFA (even if not enrolled — they'll be prompted to set up)
+//   - "optional": users who have enrolled MFA methods are challenged; others skip
+//   - "disabled" or "": MFA is never prompted on login
+type MFAPolicy string
+
+const (
+	MFAPolicyRequired MFAPolicy = "required"
+	MFAPolicyOptional MFAPolicy = "optional"
+	MFAPolicyDisabled MFAPolicy = "disabled"
+)
+
 type NamespaceConfig struct {
-	MFARequired            bool                        `bson:"mfa_required"`
+	MFAPolicy              MFAPolicy                   `bson:"mfa_policy"`
 	AllowedSocialProviders []string                    `bson:"allowed_social_providers"`
 	PasswordPolicy         PasswordPolicy              `bson:"password_policy"`
 	IPAllowList            []string                    `bson:"ip_allow_list"`

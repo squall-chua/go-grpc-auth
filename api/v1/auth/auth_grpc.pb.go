@@ -28,6 +28,9 @@ const (
 	AuthService_ValidateToken_FullMethodName        = "/auth.v1.AuthService/ValidateToken"
 	AuthService_InitiateMFA_FullMethodName          = "/auth.v1.AuthService/InitiateMFA"
 	AuthService_VerifyMFA_FullMethodName            = "/auth.v1.AuthService/VerifyMFA"
+	AuthService_ListMFAMethods_FullMethodName       = "/auth.v1.AuthService/ListMFAMethods"
+	AuthService_RemoveMFAMethod_FullMethodName      = "/auth.v1.AuthService/RemoveMFAMethod"
+	AuthService_EnableMFAMethod_FullMethodName      = "/auth.v1.AuthService/EnableMFAMethod"
 	AuthService_GetSocialAuthURL_FullMethodName     = "/auth.v1.AuthService/GetSocialAuthURL"
 	AuthService_HandleSocialCallback_FullMethodName = "/auth.v1.AuthService/HandleSocialCallback"
 )
@@ -47,6 +50,9 @@ type AuthServiceClient interface {
 	// MFA
 	InitiateMFA(ctx context.Context, in *InitiateMFARequest, opts ...grpc.CallOption) (*InitiateMFAResponse, error)
 	VerifyMFA(ctx context.Context, in *VerifyMFARequest, opts ...grpc.CallOption) (*TokenPair, error)
+	ListMFAMethods(ctx context.Context, in *ListMFAMethodsRequest, opts ...grpc.CallOption) (*ListMFAMethodsResponse, error)
+	RemoveMFAMethod(ctx context.Context, in *RemoveMFAMethodRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	EnableMFAMethod(ctx context.Context, in *EnableMFAMethodRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Social Login
 	GetSocialAuthURL(ctx context.Context, in *SocialAuthURLRequest, opts ...grpc.CallOption) (*SocialAuthURLResponse, error)
 	HandleSocialCallback(ctx context.Context, in *SocialCallbackRequest, opts ...grpc.CallOption) (*TokenPair, error)
@@ -132,6 +138,33 @@ func (c *authServiceClient) VerifyMFA(ctx context.Context, in *VerifyMFARequest,
 	return out, nil
 }
 
+func (c *authServiceClient) ListMFAMethods(ctx context.Context, in *ListMFAMethodsRequest, opts ...grpc.CallOption) (*ListMFAMethodsResponse, error) {
+	out := new(ListMFAMethodsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListMFAMethods_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) RemoveMFAMethod(ctx context.Context, in *RemoveMFAMethodRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, AuthService_RemoveMFAMethod_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) EnableMFAMethod(ctx context.Context, in *EnableMFAMethodRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, AuthService_EnableMFAMethod_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) GetSocialAuthURL(ctx context.Context, in *SocialAuthURLRequest, opts ...grpc.CallOption) (*SocialAuthURLResponse, error) {
 	out := new(SocialAuthURLResponse)
 	err := c.cc.Invoke(ctx, AuthService_GetSocialAuthURL_FullMethodName, in, out, opts...)
@@ -165,6 +198,9 @@ type AuthServiceServer interface {
 	// MFA
 	InitiateMFA(context.Context, *InitiateMFARequest) (*InitiateMFAResponse, error)
 	VerifyMFA(context.Context, *VerifyMFARequest) (*TokenPair, error)
+	ListMFAMethods(context.Context, *ListMFAMethodsRequest) (*ListMFAMethodsResponse, error)
+	RemoveMFAMethod(context.Context, *RemoveMFAMethodRequest) (*emptypb.Empty, error)
+	EnableMFAMethod(context.Context, *EnableMFAMethodRequest) (*emptypb.Empty, error)
 	// Social Login
 	GetSocialAuthURL(context.Context, *SocialAuthURLRequest) (*SocialAuthURLResponse, error)
 	HandleSocialCallback(context.Context, *SocialCallbackRequest) (*TokenPair, error)
@@ -197,6 +233,15 @@ func (UnimplementedAuthServiceServer) InitiateMFA(context.Context, *InitiateMFAR
 }
 func (UnimplementedAuthServiceServer) VerifyMFA(context.Context, *VerifyMFARequest) (*TokenPair, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method VerifyMFA not implemented")
+}
+func (UnimplementedAuthServiceServer) ListMFAMethods(context.Context, *ListMFAMethodsRequest) (*ListMFAMethodsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListMFAMethods not implemented")
+}
+func (UnimplementedAuthServiceServer) RemoveMFAMethod(context.Context, *RemoveMFAMethodRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveMFAMethod not implemented")
+}
+func (UnimplementedAuthServiceServer) EnableMFAMethod(context.Context, *EnableMFAMethodRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method EnableMFAMethod not implemented")
 }
 func (UnimplementedAuthServiceServer) GetSocialAuthURL(context.Context, *SocialAuthURLRequest) (*SocialAuthURLResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSocialAuthURL not implemented")
@@ -360,6 +405,60 @@ func _AuthService_VerifyMFA_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListMFAMethods_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMFAMethodsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListMFAMethods(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListMFAMethods_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListMFAMethods(ctx, req.(*ListMFAMethodsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_RemoveMFAMethod_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveMFAMethodRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).RemoveMFAMethod(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_RemoveMFAMethod_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).RemoveMFAMethod(ctx, req.(*RemoveMFAMethodRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_EnableMFAMethod_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EnableMFAMethodRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).EnableMFAMethod(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_EnableMFAMethod_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).EnableMFAMethod(ctx, req.(*EnableMFAMethodRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_GetSocialAuthURL_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SocialAuthURLRequest)
 	if err := dec(in); err != nil {
@@ -434,6 +533,18 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "VerifyMFA",
 			Handler:    _AuthService_VerifyMFA_Handler,
+		},
+		{
+			MethodName: "ListMFAMethods",
+			Handler:    _AuthService_ListMFAMethods_Handler,
+		},
+		{
+			MethodName: "RemoveMFAMethod",
+			Handler:    _AuthService_RemoveMFAMethod_Handler,
+		},
+		{
+			MethodName: "EnableMFAMethod",
+			Handler:    _AuthService_EnableMFAMethod_Handler,
 		},
 		{
 			MethodName: "GetSocialAuthURL",

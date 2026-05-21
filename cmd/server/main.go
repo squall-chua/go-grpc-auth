@@ -154,6 +154,7 @@ func main() {
 		SocialAuthService: socialAuthSvc,
 		AdminService:      adminSvc,
 		NamespaceService:  nsSvc,
+		NotifRegistry:     notifRegistry,
 		OIDCService:       oidcSvc,
 		OIDCClientService: oidcClientSvc,
 	})

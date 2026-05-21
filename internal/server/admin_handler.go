@@ -10,6 +10,7 @@ import (
 	"github.com/squall-chua/go-grpc-auth/internal/domain"
 	adminservice "github.com/squall-chua/go-grpc-auth/internal/service/admin"
 	"github.com/squall-chua/go-grpc-auth/internal/service/audit"
+	"github.com/squall-chua/go-grpc-auth/internal/service/notification"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -18,6 +19,7 @@ type adminGRPCServer struct {
 	admin.UnimplementedAdminServiceServer
 	service       adminservice.AdminService
 	clientService adminservice.OIDCClientService
+	notifRegistry *notification.Registry
 }
 
 func (s *adminGRPCServer) ListUsers(ctx context.Context, req *admin.ListUsersRequest) (*admin.ListUsersResponse, error) {
@@ -299,7 +301,7 @@ func (s *namespaceGRPCServer) UpdateNamespaceConfig(ctx context.Context, req *ad
 		return nil, err
 	}
 
-	ns.Config.MFARequired = req.Config.GetMfaRequired()
+	ns.Config.MFAPolicy = protoToMFAPolicy(req.Config.GetMfaPolicy())
 	ns.Config.AllowedSocialProviders = req.Config.GetAllowedSocialProviders()
 	pp := req.Config.GetPasswordPolicy()
 	ns.Config.PasswordPolicy.MinLength = int(pp.GetMinLength())
@@ -308,6 +310,38 @@ func (s *namespaceGRPCServer) UpdateNamespaceConfig(ctx context.Context, req *ad
 	ns.Config.PasswordPolicy.RequireNumber = pp.GetRequireNumber()
 	ns.Config.PasswordPolicy.RequireSpecial = pp.GetRequireSpecial()
 	ns.Config.PasswordPolicy.PasswordHistory = int(pp.GetPasswordHistory())
+
+	ns.Config.IPAllowList = req.Config.GetIpAllowlist()
+	ns.Config.IPDenyList = req.Config.GetIpDenylist()
+	ns.Config.WebhookURL = req.Config.GetWebhookUrl()
+	ns.Config.WebhookSecret = req.Config.GetWebhookSecret()
+
+	if n := req.Config.GetNotification(); n != nil {
+		ns.Config.Notification = domain.NamespaceNotificationConfig{
+			EmailProvider: n.GetEmailProvider(),
+			SMSProvider:   n.GetSmsProvider(),
+		}
+		if et := n.GetEmailTemplates(); len(et) > 0 {
+			ns.Config.Notification.EmailTemplates = make(map[string]domain.EmailTemplateOverride, len(et))
+			for k, v := range et {
+				ns.Config.Notification.EmailTemplates[k] = domain.EmailTemplateOverride{
+					Subject:  v.GetSubject(),
+					HTMLBody: v.GetHtmlBody(),
+					TextBody: v.GetTextBody(),
+				}
+			}
+		}
+		if st := n.GetSmsTemplates(); len(st) > 0 {
+			ns.Config.Notification.SMSTemplates = make(map[string]domain.SMSTemplateOverride, len(st))
+			for k, v := range st {
+				ns.Config.Notification.SMSTemplates[k] = domain.SMSTemplateOverride{
+					Body: v.GetBody(),
+				}
+			}
+		}
+	} else {
+		ns.Config.Notification = domain.NamespaceNotificationConfig{}
+	}
 
 	err = s.service.UpdateNamespace(ctx, ns)
 	if err != nil {
@@ -324,22 +358,60 @@ func (s *namespaceGRPCServer) DeleteNamespace(ctx context.Context, req *admin.De
 	return &emptypb.Empty{}, nil
 }
 
+func (s *adminGRPCServer) ListNotificationProviders(ctx context.Context, req *admin.ListNotificationProvidersRequest) (*admin.ListNotificationProvidersResponse, error) {
+	return &admin.ListNotificationProvidersResponse{
+		EmailProviders: s.notifRegistry.EmailProviderNames(),
+		SmsProviders:   s.notifRegistry.SMSProviderNames(),
+	}, nil
+}
+
 func mapNamespace(ns *domain.Namespace) *admin.Namespace {
-	return &admin.Namespace{
-		Id:   ns.ID.Hex(),
-		Name: ns.Name,
-		Config: &admin.NamespaceConfig{
-			MfaRequired:            ns.Config.MFARequired,
-			AllowedSocialProviders: ns.Config.AllowedSocialProviders,
-			PasswordPolicy: &admin.PasswordPolicy{
-				MinLength:        int32(ns.Config.PasswordPolicy.MinLength),
-				RequireUppercase: ns.Config.PasswordPolicy.RequireUppercase,
-				RequireLowercase: ns.Config.PasswordPolicy.RequireLowercase,
-				RequireNumber:    ns.Config.PasswordPolicy.RequireNumber,
-				RequireSpecial:   ns.Config.PasswordPolicy.RequireSpecial,
-				PasswordHistory:  int32(ns.Config.PasswordPolicy.PasswordHistory),
-			},
+	config := &admin.NamespaceConfig{
+		MfaPolicy:              mfaPolicyToProto(ns.Config.MFAPolicy),
+		AllowedSocialProviders: ns.Config.AllowedSocialProviders,
+		PasswordPolicy: &admin.PasswordPolicy{
+			MinLength:        int32(ns.Config.PasswordPolicy.MinLength),
+			RequireUppercase: ns.Config.PasswordPolicy.RequireUppercase,
+			RequireLowercase: ns.Config.PasswordPolicy.RequireLowercase,
+			RequireNumber:    ns.Config.PasswordPolicy.RequireNumber,
+			RequireSpecial:   ns.Config.PasswordPolicy.RequireSpecial,
+			PasswordHistory:  int32(ns.Config.PasswordPolicy.PasswordHistory),
 		},
+		IpAllowlist:   ns.Config.IPAllowList,
+		IpDenylist:    ns.Config.IPDenyList,
+		WebhookUrl:    ns.Config.WebhookURL,
+		WebhookSecret: ns.Config.WebhookSecret,
+	}
+
+	n := ns.Config.Notification
+	if n.EmailProvider != "" || n.SMSProvider != "" || len(n.EmailTemplates) > 0 || len(n.SMSTemplates) > 0 {
+		nc := &admin.NotificationConfig{
+			EmailProvider: n.EmailProvider,
+			SmsProvider:   n.SMSProvider,
+		}
+		if len(n.EmailTemplates) > 0 {
+			nc.EmailTemplates = make(map[string]*admin.EmailTemplateOverride, len(n.EmailTemplates))
+			for k, v := range n.EmailTemplates {
+				nc.EmailTemplates[k] = &admin.EmailTemplateOverride{
+					Subject:  v.Subject,
+					HtmlBody: v.HTMLBody,
+					TextBody: v.TextBody,
+				}
+			}
+		}
+		if len(n.SMSTemplates) > 0 {
+			nc.SmsTemplates = make(map[string]*admin.SMSTemplateOverride, len(n.SMSTemplates))
+			for k, v := range n.SMSTemplates {
+				nc.SmsTemplates[k] = &admin.SMSTemplateOverride{Body: v.Body}
+			}
+		}
+		config.Notification = nc
+	}
+
+	return &admin.Namespace{
+		Id:     ns.ID.Hex(),
+		Name:   ns.Name,
+		Config: config,
 	}
 }
 func (s *adminGRPCServer) ListAuditLogs(ctx context.Context, req *admin.ListAuditLogsRequest) (*admin.ListAuditLogsResponse, error) {
@@ -410,4 +482,26 @@ func mapUserStatus(status domain.UserStatus) admin.UserStatus {
 func mapProtoUserStatus(status admin.UserStatus) domain.UserStatus {
 	name := admin.UserStatus_name[int32(status)]
 	return domain.UserStatus(strings.ToLower(strings.TrimPrefix(name, "USER_STATUS_")))
+}
+
+func protoToMFAPolicy(p admin.MFAPolicy) domain.MFAPolicy {
+	switch p {
+	case admin.MFAPolicy_MFA_POLICY_REQUIRED:
+		return domain.MFAPolicyRequired
+	case admin.MFAPolicy_MFA_POLICY_OPTIONAL:
+		return domain.MFAPolicyOptional
+	default:
+		return domain.MFAPolicyDisabled
+	}
+}
+
+func mfaPolicyToProto(p domain.MFAPolicy) admin.MFAPolicy {
+	switch p {
+	case domain.MFAPolicyRequired:
+		return admin.MFAPolicy_MFA_POLICY_REQUIRED
+	case domain.MFAPolicyOptional:
+		return admin.MFAPolicy_MFA_POLICY_OPTIONAL
+	default:
+		return admin.MFAPolicy_MFA_POLICY_DISABLED
+	}
 }

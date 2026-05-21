@@ -5,6 +5,7 @@ import (
 	authv1 "github.com/squall-chua/go-grpc-auth/api/v1/auth"
 	adminservice "github.com/squall-chua/go-grpc-auth/internal/service/admin"
 	authservice "github.com/squall-chua/go-grpc-auth/internal/service/auth"
+	"github.com/squall-chua/go-grpc-auth/internal/service/notification"
 	"github.com/squall-chua/go-grpc-auth/internal/service/oidc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -15,6 +16,7 @@ type GRPCServerConfig struct {
 	SocialAuthService authservice.SocialAuthService
 	AdminService      adminservice.AdminService
 	NamespaceService  adminservice.NamespaceService
+	NotifRegistry     *notification.Registry
 	OIDCService       oidc.OIDCService
 	OIDCClientService adminservice.OIDCClientService
 }
@@ -32,6 +34,7 @@ func NewGRPCServer(cfg GRPCServerConfig) *grpc.Server {
 	admin.RegisterAdminServiceServer(s, &adminGRPCServer{
 		service:       cfg.AdminService,
 		clientService: cfg.OIDCClientService,
+		notifRegistry: cfg.NotifRegistry,
 	})
 	admin.RegisterNamespaceServiceServer(s, &namespaceGRPCServer{service: cfg.NamespaceService})
 	admin.RegisterOIDCClientServiceServer(s, &oidcClientGRPCServer{service: cfg.OIDCClientService})

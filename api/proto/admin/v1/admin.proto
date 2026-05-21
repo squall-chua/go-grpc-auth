@@ -162,6 +162,16 @@ service AdminService {
   }
 
 
+  // Notification
+  rpc ListNotificationProviders(ListNotificationProvidersRequest) returns (ListNotificationProvidersResponse) {
+    option (google.api.http) = {
+      get: "/v1/admin/notification/providers"
+    };
+    option (options.v1.rule) = {
+      roles: ["superadmin"]
+    };
+  }
+
   // Audit Logs
   rpc ListAuditLogs(ListAuditLogsRequest) returns (ListAuditLogsResponse) {
     option (google.api.http) = {
@@ -324,5 +334,12 @@ message ListPermissionsResponse {
 
 message DeletePermissionRequest {
   string id = 1;
+}
+
+message ListNotificationProvidersRequest {}
+
+message ListNotificationProvidersResponse {
+  repeated string email_providers = 1;
+  repeated string sms_providers = 2;
 }
 

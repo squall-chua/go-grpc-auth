@@ -20,21 +20,22 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	AdminService_ListUsers_FullMethodName         = "/admin.v1.AdminService/ListUsers"
-	AdminService_GetUser_FullMethodName           = "/admin.v1.AdminService/GetUser"
-	AdminService_UpdateUserStatus_FullMethodName  = "/admin.v1.AdminService/UpdateUserStatus"
-	AdminService_ResetUserPassword_FullMethodName = "/admin.v1.AdminService/ResetUserPassword"
-	AdminService_GrantRoles_FullMethodName        = "/admin.v1.AdminService/GrantRoles"
-	AdminService_RevokeRoles_FullMethodName       = "/admin.v1.AdminService/RevokeRoles"
-	AdminService_GrantPermissions_FullMethodName  = "/admin.v1.AdminService/GrantPermissions"
-	AdminService_RevokePermissions_FullMethodName = "/admin.v1.AdminService/RevokePermissions"
-	AdminService_CreateRole_FullMethodName        = "/admin.v1.AdminService/CreateRole"
-	AdminService_ListRoles_FullMethodName         = "/admin.v1.AdminService/ListRoles"
-	AdminService_DeleteRole_FullMethodName        = "/admin.v1.AdminService/DeleteRole"
-	AdminService_CreatePermission_FullMethodName  = "/admin.v1.AdminService/CreatePermission"
-	AdminService_ListPermissions_FullMethodName   = "/admin.v1.AdminService/ListPermissions"
-	AdminService_DeletePermission_FullMethodName  = "/admin.v1.AdminService/DeletePermission"
-	AdminService_ListAuditLogs_FullMethodName     = "/admin.v1.AdminService/ListAuditLogs"
+	AdminService_ListUsers_FullMethodName                 = "/admin.v1.AdminService/ListUsers"
+	AdminService_GetUser_FullMethodName                   = "/admin.v1.AdminService/GetUser"
+	AdminService_UpdateUserStatus_FullMethodName          = "/admin.v1.AdminService/UpdateUserStatus"
+	AdminService_ResetUserPassword_FullMethodName         = "/admin.v1.AdminService/ResetUserPassword"
+	AdminService_GrantRoles_FullMethodName                = "/admin.v1.AdminService/GrantRoles"
+	AdminService_RevokeRoles_FullMethodName               = "/admin.v1.AdminService/RevokeRoles"
+	AdminService_GrantPermissions_FullMethodName          = "/admin.v1.AdminService/GrantPermissions"
+	AdminService_RevokePermissions_FullMethodName         = "/admin.v1.AdminService/RevokePermissions"
+	AdminService_CreateRole_FullMethodName                = "/admin.v1.AdminService/CreateRole"
+	AdminService_ListRoles_FullMethodName                 = "/admin.v1.AdminService/ListRoles"
+	AdminService_DeleteRole_FullMethodName                = "/admin.v1.AdminService/DeleteRole"
+	AdminService_CreatePermission_FullMethodName          = "/admin.v1.AdminService/CreatePermission"
+	AdminService_ListPermissions_FullMethodName           = "/admin.v1.AdminService/ListPermissions"
+	AdminService_DeletePermission_FullMethodName          = "/admin.v1.AdminService/DeletePermission"
+	AdminService_ListNotificationProviders_FullMethodName = "/admin.v1.AdminService/ListNotificationProviders"
+	AdminService_ListAuditLogs_FullMethodName             = "/admin.v1.AdminService/ListAuditLogs"
 )
 
 // AdminServiceClient is the client API for AdminService service.
@@ -60,6 +61,8 @@ type AdminServiceClient interface {
 	CreatePermission(ctx context.Context, in *CreatePermissionRequest, opts ...grpc.CallOption) (*Permission, error)
 	ListPermissions(ctx context.Context, in *ListPermissionsRequest, opts ...grpc.CallOption) (*ListPermissionsResponse, error)
 	DeletePermission(ctx context.Context, in *DeletePermissionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Notification
+	ListNotificationProviders(ctx context.Context, in *ListNotificationProvidersRequest, opts ...grpc.CallOption) (*ListNotificationProvidersResponse, error)
 	// Audit Logs
 	ListAuditLogs(ctx context.Context, in *ListAuditLogsRequest, opts ...grpc.CallOption) (*ListAuditLogsResponse, error)
 }
@@ -198,6 +201,15 @@ func (c *adminServiceClient) DeletePermission(ctx context.Context, in *DeletePer
 	return out, nil
 }
 
+func (c *adminServiceClient) ListNotificationProviders(ctx context.Context, in *ListNotificationProvidersRequest, opts ...grpc.CallOption) (*ListNotificationProvidersResponse, error) {
+	out := new(ListNotificationProvidersResponse)
+	err := c.cc.Invoke(ctx, AdminService_ListNotificationProviders_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *adminServiceClient) ListAuditLogs(ctx context.Context, in *ListAuditLogsRequest, opts ...grpc.CallOption) (*ListAuditLogsResponse, error) {
 	out := new(ListAuditLogsResponse)
 	err := c.cc.Invoke(ctx, AdminService_ListAuditLogs_FullMethodName, in, out, opts...)
@@ -230,6 +242,8 @@ type AdminServiceServer interface {
 	CreatePermission(context.Context, *CreatePermissionRequest) (*Permission, error)
 	ListPermissions(context.Context, *ListPermissionsRequest) (*ListPermissionsResponse, error)
 	DeletePermission(context.Context, *DeletePermissionRequest) (*emptypb.Empty, error)
+	// Notification
+	ListNotificationProviders(context.Context, *ListNotificationProvidersRequest) (*ListNotificationProvidersResponse, error)
 	// Audit Logs
 	ListAuditLogs(context.Context, *ListAuditLogsRequest) (*ListAuditLogsResponse, error)
 }
@@ -279,6 +293,9 @@ func (UnimplementedAdminServiceServer) ListPermissions(context.Context, *ListPer
 }
 func (UnimplementedAdminServiceServer) DeletePermission(context.Context, *DeletePermissionRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeletePermission not implemented")
+}
+func (UnimplementedAdminServiceServer) ListNotificationProviders(context.Context, *ListNotificationProvidersRequest) (*ListNotificationProvidersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListNotificationProviders not implemented")
 }
 func (UnimplementedAdminServiceServer) ListAuditLogs(context.Context, *ListAuditLogsRequest) (*ListAuditLogsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAuditLogs not implemented")
@@ -547,6 +564,24 @@ func _AdminService_DeletePermission_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AdminService_ListNotificationProviders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListNotificationProvidersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).ListNotificationProviders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_ListNotificationProviders_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).ListNotificationProviders(ctx, req.(*ListNotificationProvidersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AdminService_ListAuditLogs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListAuditLogsRequest)
 	if err := dec(in); err != nil {
@@ -627,6 +662,10 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeletePermission",
 			Handler:    _AdminService_DeletePermission_Handler,
+		},
+		{
+			MethodName: "ListNotificationProviders",
+			Handler:    _AdminService_ListNotificationProviders_Handler,
 		},
 		{
 			MethodName: "ListAuditLogs",

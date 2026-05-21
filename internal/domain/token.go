@@ -32,6 +32,7 @@ type TokenPair struct {
 	ExpiresIn    int
 	MFARequired  bool
 	MFAToken     string
+	MFAMethods   []string
 }
 
 type TokenResponse struct {

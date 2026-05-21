@@ -14,7 +14,7 @@
       <UTable :rows="namespaces" :columns="columns" :loading="loading">
         <template #config-data="{ row }">
           <div class="flex flex-wrap gap-1">
-            <UBadge size="xs" :color="row.config?.mfa_required ? 'orange' : 'gray'" variant="soft">MFA {{ row.config?.mfa_required ? 'ON' : 'OFF' }}</UBadge>
+            <UBadge size="xs" :color="row.config?.mfa_policy === 'MFA_POLICY_REQUIRED' ? 'orange' : row.config?.mfa_policy === 'MFA_POLICY_OPTIONAL' ? 'blue' : 'gray'" variant="soft">MFA {{ {MFA_POLICY_REQUIRED: 'required', MFA_POLICY_OPTIONAL: 'optional', MFA_POLICY_DISABLED: 'disabled'}[row.config?.mfa_policy] || 'disabled' }}</UBadge>
             <template v-if="row.config?.password_policy">
               <UBadge size="xs" color="primary" variant="soft">min {{ row.config.password_policy.min_length || 0 }} chars</UBadge>
               <UBadge v-if="row.config.password_policy.require_uppercase" size="xs" color="primary" variant="soft">A-Z</UBadge>
@@ -57,7 +57,11 @@
             <UInput v-model="form.name" placeholder="e.g. acme-corp" />
           </UFormGroup>
           <UFormGroup label="Security">
-            <UCheckbox v-model="form.config.mfa_required" label="Require MFA for all users" />
+            <USelectMenu v-model="form.config.mfa_policy" :options="[
+              { label: 'Disabled', value: 'MFA_POLICY_DISABLED' },
+              { label: 'Optional (challenge enrolled users)', value: 'MFA_POLICY_OPTIONAL' },
+              { label: 'Required (challenge all users)', value: 'MFA_POLICY_REQUIRED' },
+            ]" value-attribute="value" option-attribute="label" />
           </UFormGroup>
           <UFormGroup label="Social Providers">
             <USelectMenu v-model="form.config.allowed_social_providers" multiple :options="['google', 'github']" />
@@ -70,6 +74,79 @@
               <UCheckbox v-model="form.config.password_policy.require_number" label="Require number" />
               <UCheckbox v-model="form.config.password_policy.require_special" label="Require special character" />
               <UInput v-model.number="form.config.password_policy.password_history" type="number" placeholder="Password history count" />
+            </div>
+          </UFormGroup>
+          <UFormGroup label="Notification">
+            <div class="space-y-4">
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs font-medium text-slate-500 mb-1">Email Provider</label>
+                  <USelectMenu
+                    v-model="form.config.notification.email_provider"
+                    :options="emailProviderOptions"
+                    value-attribute="value"
+                    option-attribute="label"
+                  />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-500 mb-1">SMS Provider</label>
+                  <USelectMenu
+                    v-model="form.config.notification.sms_provider"
+                    :options="smsProviderOptions"
+                    value-attribute="value"
+                    option-attribute="label"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <label class="text-xs font-medium text-slate-500">Template Overrides</label>
+                  <UDropdown :items="addableTemplateItems" :popper="{ placement: 'bottom-end' }">
+                    <UButton size="xs" variant="ghost" icon="i-heroicons-plus" label="Add override" :disabled="addableTemplateItems[0].length === 0" />
+                  </UDropdown>
+                </div>
+
+                <div v-for="(override, name) in form.config.notification.email_templates" :key="'email-' + name" class="border border-slate-200 dark:border-slate-700 rounded-lg mb-3">
+                  <div class="flex items-center justify-between px-3 py-2 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 rounded-t-lg">
+                    <div class="flex items-center gap-2">
+                      <UBadge size="xs" color="blue" variant="soft">email</UBadge>
+                      <span class="text-sm font-mono font-medium">{{ name }}</span>
+                    </div>
+                    <UButton size="xs" variant="ghost" color="red" @click="delete form.config.notification.email_templates[name]">Remove</UButton>
+                  </div>
+                  <div class="p-3 space-y-3">
+                    <div>
+                      <label class="block text-xs text-slate-500 mb-1">Subject</label>
+                      <UInput v-model="override.subject" placeholder="Leave empty to use default" class="font-mono text-sm" />
+                    </div>
+                    <div>
+                      <label class="block text-xs text-slate-500 mb-1">HTML Body</label>
+                      <UTextarea v-model="override.html_body" placeholder="Leave empty to use default" class="font-mono text-sm" :rows="4" />
+                      <p class="text-xs text-slate-400 mt-1" v-pre>Variables: <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded">{{.Code}}</code> <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded">{{.TTLMinutes}}</code> <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded">{{.AppName}}</code></p>
+                    </div>
+                    <div>
+                      <label class="block text-xs text-slate-500 mb-1">Text Body</label>
+                      <UTextarea v-model="override.text_body" placeholder="Leave empty to use default" class="font-mono text-sm" :rows="2" />
+                    </div>
+                  </div>
+                </div>
+
+                <div v-for="(override, name) in form.config.notification.sms_templates" :key="'sms-' + name" class="border border-slate-200 dark:border-slate-700 rounded-lg mb-3">
+                  <div class="flex items-center justify-between px-3 py-2 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 rounded-t-lg">
+                    <div class="flex items-center gap-2">
+                      <UBadge size="xs" color="amber" variant="soft">sms</UBadge>
+                      <span class="text-sm font-mono font-medium">{{ name }}</span>
+                    </div>
+                    <UButton size="xs" variant="ghost" color="red" @click="delete form.config.notification.sms_templates[name]">Remove</UButton>
+                  </div>
+                  <div class="p-3">
+                    <label class="block text-xs text-slate-500 mb-1">Body</label>
+                    <UTextarea v-model="override.body" placeholder="Leave empty to use default" class="font-mono text-sm" :rows="2" />
+                    <p class="text-xs text-slate-400 mt-1" v-pre>Variables: <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded">{{.Code}}</code> <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded">{{.TTLMinutes}}</code></p>
+                  </div>
+                </div>
+              </div>
             </div>
           </UFormGroup>
           <div class="flex justify-end gap-2 mt-4">
@@ -98,12 +175,20 @@ const editingId = ref(null)
 const search = ref('')
 
 const defaultConfig = () => ({
-  mfa_required: false,
+  mfa_policy: 'MFA_POLICY_DISABLED',
   allowed_social_providers: [],
   password_policy: { min_length: 8, require_uppercase: false, require_lowercase: false, require_number: false, require_special: false, password_history: 0 },
+  notification: {
+    email_provider: '',
+    sms_provider: '',
+    email_templates: {},
+    sms_templates: {},
+  },
 })
 
 const form = reactive({ name: '', config: defaultConfig() })
+
+const availableProviders = ref({ email_providers: [], sms_providers: [] })
 
 const columns = [
   { key: 'name', label: 'Name', sortable: true },
@@ -130,6 +215,16 @@ function openEditModal(row) {
   form.name = row.name
   Object.assign(form.config, defaultConfig(), row.config || {})
   if (row.config?.password_policy) Object.assign(form.config.password_policy, row.config.password_policy)
+  if (row.config?.notification) {
+    form.config.notification = {
+      email_provider: row.config.notification.email_provider || '',
+      sms_provider: row.config.notification.sms_provider || '',
+      email_templates: JSON.parse(JSON.stringify(row.config.notification.email_templates || {})),
+      sms_templates: JSON.parse(JSON.stringify(row.config.notification.sms_templates || {})),
+    }
+  } else {
+    form.config.notification = defaultConfig().notification
+  }
   isModalOpen.value = true
 }
 
@@ -166,6 +261,38 @@ async function handleUpdateConfig() {
   finally { saving.value = false }
 }
 
+const emailProviderOptions = computed(() => [
+  { label: 'Use server default', value: '' },
+  ...availableProviders.value.email_providers.map(p => ({ label: p, value: p })),
+])
+
+const smsProviderOptions = computed(() => [
+  { label: 'Use server default', value: '' },
+  ...availableProviders.value.sms_providers.map(p => ({ label: p, value: p })),
+])
+
+const templateRegistry = [
+  { name: 'mfa_email_otp', channel: 'email' },
+  { name: 'mfa_sms_otp', channel: 'sms' },
+]
+
+const addableTemplateItems = computed(() => {
+  const existing = new Set([
+    ...Object.keys(form.config.notification.email_templates || {}),
+    ...Object.keys(form.config.notification.sms_templates || {}),
+  ])
+  return [templateRegistry.filter(t => !existing.has(t.name)).map(t => ({
+    label: `${t.channel}: ${t.name}`,
+    click: () => {
+      if (t.channel === 'email') {
+        form.config.notification.email_templates[t.name] = { subject: '', html_body: '', text_body: '' }
+      } else {
+        form.config.notification.sms_templates[t.name] = { body: '' }
+      }
+    },
+  }))]
+})
+
 async function handleDelete(id) {
   if (!confirm('Are you sure? This action is permanent.')) return
   try {
@@ -175,5 +302,10 @@ async function handleDelete(id) {
   } catch { toast.add({ title: 'Deletion failed', color: 'red' }) }
 }
 
-onMounted(fetchNamespaces)
+onMounted(async () => {
+  fetchNamespaces()
+  try {
+    availableProviders.value = await api.fetch('/v1/admin/notification/providers')
+  } catch { /* ignore */ }
+})
 </script>

@@ -37,7 +37,7 @@ onMounted(async () => {
     })
 
     if (res.mfa_required) {
-      auth.setMFARequired(res.mfa_token)
+      auth.setMFARequired(res.mfa_token, res.mfa_methods || [])
       navigateTo('/mfa')
       return
     }
