@@ -23,6 +23,7 @@ type UserRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.User, error)
 	GetByEmail(ctx context.Context, namespace, email string) (*domain.User, error)
 	GetByUsername(ctx context.Context, namespace, username string) (*domain.User, error)
+	GetBySocialIdentity(ctx context.Context, namespace string, provider domain.SocialProvider, externalID string) (*domain.User, error)
 	Update(ctx context.Context, user *domain.User) error
 	UpdateStatus(ctx context.Context, id string, status domain.UserStatus) error
 	UpdatePassword(ctx context.Context, id, passwordHash string, maxHistory int) error
@@ -102,6 +103,21 @@ func (r *mongoUserRepository) GetByUsername(ctx context.Context, namespace, user
 	user, err := r.collection.FindOne(ctx, gmqb.And(
 		gmqb.Eq(r.f("Namespace"), namespace),
 		gmqb.Eq(r.f("Username"), username),
+	))
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+	return user, nil
+}
+
+func (r *mongoUserRepository) GetBySocialIdentity(ctx context.Context, namespace string, provider domain.SocialProvider, externalID string) (*domain.User, error) {
+	user, err := r.collection.FindOne(ctx, gmqb.And(
+		gmqb.Eq(r.f("Namespace"), namespace),
+		gmqb.Eq(r.f("SocialIdentities.0.Provider"), provider),
+		gmqb.Eq(r.f("SocialIdentities.0.ExternalID"), externalID),
 	))
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
