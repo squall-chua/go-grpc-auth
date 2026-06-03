@@ -257,7 +257,56 @@ func (s *web3AuthService) ListWallets(_ context.Context, user *domain.User) ([]*
 	return out, nil
 }
 
-func (s *web3AuthService) LinkWallet(_ context.Context, _ LinkRequest) error {
+func (s *web3AuthService) LinkWallet(ctx context.Context, req LinkRequest) error {
+	msg, err := siwe.ParseMessage(req.SIWEMessage)
+	if err != nil {
+		return err
+	}
+	if _, err := msg.VerifyEIP191(req.Signature); err != nil {
+		return err
+	}
+	addr := strings.ToLower(msg.GetAddress().Hex())
+	chainID := int64(msg.GetChainID())
+
+	// Reject if already linked to any user.
+	if existing, err := s.userRepo.GetBySocialIdentity(ctx, req.Namespace, domain.ProviderEthereum, addr); err == nil && existing != nil {
+		if s.auditSvc != nil {
+			s.auditSvc.Log(ctx, domain.EventWeb3WalletLinkConflict, req.UserID, req.Namespace, util.GetClientIP(ctx), util.GetUserAgent(ctx), map[string]any{
+				"wallet":      msg.GetAddress().Hex(),
+				"linked_user": existing.ID.Hex(),
+			})
+		}
+		return errors.New("wallet already linked to another account")
+	} else if err != nil && !errors.Is(err, repository.ErrUserNotFound) {
+		return err
+	}
+
+	// Load current user.
+	objID, err := bson.ObjectIDFromHex(req.UserID)
+	if err != nil {
+		return err
+	}
+	user, err := s.userRepo.GetByID(ctx, objID.Hex())
+	if err != nil {
+		return err
+	}
+
+	// Append identity.
+	user.SocialIdentities = append(user.SocialIdentities, domain.SocialIdentity{
+		Provider:   domain.ProviderEthereum,
+		ExternalID: addr,
+		Email:      "",
+	})
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return err
+	}
+
+	if s.auditSvc != nil {
+		s.auditSvc.Log(ctx, domain.EventWeb3WalletLinked, user.ID.Hex(), req.Namespace, util.GetClientIP(ctx), util.GetUserAgent(ctx), map[string]any{
+			"wallet":   msg.GetAddress().Hex(),
+			"chain_id": chainID,
+		})
+	}
 	return nil
 }
 
