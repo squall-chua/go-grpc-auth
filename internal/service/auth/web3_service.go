@@ -37,9 +37,9 @@ type LinkRequest struct {
 type Web3AuthService interface {
 	RequestNonce(ctx context.Context, namespace, wallet string) (nonce string, err error)
 	Verify(ctx context.Context, req VerifyRequest) (*domain.TokenResponse, *domain.WalletInfo, error)
-	ListWallets(ctx context.Context, userID string) ([]*domain.WalletInfo, error)
+	ListWallets(ctx context.Context, user *domain.User) ([]*domain.WalletInfo, error)
 	LinkWallet(ctx context.Context, req LinkRequest) error
-	UnlinkWallet(ctx context.Context, userID, namespace, wallet string) error
+	UnlinkWallet(ctx context.Context, user *domain.User, wallet string) error
 }
 
 type web3AuthService struct {
@@ -244,12 +244,47 @@ func containsInt64(haystack []int64, needle int64) bool {
 	}
 	return false
 }
-func (s *web3AuthService) ListWallets(_ context.Context, _ string) ([]*domain.WalletInfo, error) {
-	return nil, nil
+func (s *web3AuthService) ListWallets(_ context.Context, user *domain.User) ([]*domain.WalletInfo, error) {
+	out := make([]*domain.WalletInfo, 0, len(user.SocialIdentities))
+	for _, id := range user.SocialIdentities {
+		if id.Provider != domain.ProviderEthereum {
+			continue
+		}
+		out = append(out, &domain.WalletInfo{
+			Address: common.HexToAddress(id.ExternalID).Hex(),
+		})
+	}
+	return out, nil
 }
+
 func (s *web3AuthService) LinkWallet(_ context.Context, _ LinkRequest) error {
 	return nil
 }
-func (s *web3AuthService) UnlinkWallet(_ context.Context, _, _, _ string) error {
+
+func (s *web3AuthService) UnlinkWallet(_ context.Context, user *domain.User, wallet string) error {
+	target := strings.ToLower(wallet)
+	filtered := user.SocialIdentities[:0]
+	for _, id := range user.SocialIdentities {
+		if id.Provider == domain.ProviderEthereum && strings.ToLower(id.ExternalID) == target {
+			continue
+		}
+		filtered = append(filtered, id)
+	}
+	// Anti-soft-lockout: must have password or at least one other identity.
+	if user.PasswordHash == "" {
+		otherWallets := 0
+		otherIdents := 0
+		for _, id := range filtered {
+			if id.Provider == domain.ProviderEthereum {
+				otherWallets++
+			} else {
+				otherIdents++
+			}
+		}
+		if otherWallets == 0 && otherIdents == 0 {
+			return errors.New("cannot unlink last credential")
+		}
+	}
+	user.SocialIdentities = filtered
 	return nil
 }
