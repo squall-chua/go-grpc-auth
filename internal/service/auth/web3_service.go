@@ -3,15 +3,19 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/spruceid/siwe-go"
 	"github.com/squall-chua/go-grpc-auth/internal/domain"
 	"github.com/squall-chua/go-grpc-auth/internal/repository"
 	"github.com/squall-chua/go-grpc-auth/internal/service/audit"
 	tokenservice "github.com/squall-chua/go-grpc-auth/internal/service/token"
 	"github.com/squall-chua/go-grpc-auth/internal/util"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // VerifyRequest is the input to Web3AuthService.Verify.
@@ -91,8 +95,154 @@ func (s *web3AuthService) RequestNonce(ctx context.Context, namespace, wallet st
 	}
 	return nonce, nil
 }
-func (s *web3AuthService) Verify(_ context.Context, _ VerifyRequest) (*domain.TokenResponse, *domain.WalletInfo, error) {
-	return nil, nil, nil
+func (s *web3AuthService) Verify(ctx context.Context, req VerifyRequest) (*domain.TokenResponse, *domain.WalletInfo, error) {
+	// 1. Parse + verify SIWE (no domain binding in v1; we bind nonce instead).
+	msg, err := siwe.ParseMessage(req.SIWEMessage)
+	if err != nil {
+		s.logFail(ctx, req.Namespace, "parse", err)
+		return nil, nil, err
+	}
+	recovered, err := msg.VerifyEIP191(req.Signature)
+	if err != nil {
+		s.logFail(ctx, req.Namespace, "signature", err)
+		return nil, nil, err
+	}
+	addrFromMsg := msg.GetAddress()
+	if recovered == nil {
+		s.logFail(ctx, req.Namespace, "recover", errors.New("nil public key"))
+		return nil, nil, errors.New("signature recovery failed")
+	}
+	recoveredAddr := crypto.PubkeyToAddress(*recovered)
+	if recoveredAddr != addrFromMsg {
+		s.logFail(ctx, req.Namespace, "address_mismatch", nil)
+		return nil, nil, errors.New("signature does not match address")
+	}
+	if !IsEOA(recoveredAddr) {
+		s.logFail(ctx, req.Namespace, "smart_contract_wallet", nil)
+		return nil, nil, errors.New("smart-contract wallets are not supported in v1")
+	}
+	checksum := recoveredAddr.Hex()
+	lower := strings.ToLower(checksum)
+	chainID := int64(msg.GetChainID())
+
+	// 2. Verify nonce: must match what we issued for this (ns, wallet).
+	ok, err := s.nonceStore.Consume(ctx, req.Namespace, lower, msg.GetNonce())
+	if err != nil {
+		return nil, nil, err
+	}
+	if !ok {
+		s.logFail(ctx, req.Namespace, "nonce_invalid", nil)
+		return nil, nil, errors.New("nonce not found or already used")
+	}
+
+	// 3. Verify chainId against the namespace allowlist.
+	allowed, err := s.allowed.AllowedChainIDs(ctx, req.Namespace)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !containsInt64(allowed, chainID) {
+		s.logFail(ctx, req.Namespace, "chain_not_allowed", nil)
+		return nil, nil, fmt.Errorf("chain id %d not allowed for this namespace", chainID)
+	}
+
+	// 4. Find-or-create user.
+	user, err := s.findOrCreateUser(ctx, req.Namespace, checksum)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// 5. Issue tokens with web3 claims.
+	pair, err := s.tokenSvc.GenerateTokenPairWithClaims(ctx, user, "", nil, map[string]any{
+		"web3_address":  checksum,
+		"web3_chain_id": chainID,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if s.auditSvc != nil {
+		s.auditSvc.Log(ctx, domain.EventWeb3SignInSuccess, user.ID.Hex(), req.Namespace, util.GetClientIP(ctx), util.GetUserAgent(ctx), map[string]any{
+			"wallet":   checksum,
+			"chain_id": chainID,
+		})
+	}
+
+	return &domain.TokenResponse{
+		AccessToken:  pair.AccessToken,
+		RefreshToken: pair.RefreshToken,
+		IDToken:      pair.IDToken,
+		ExpiresIn:    pair.ExpiresIn,
+		TokenType:    "Bearer",
+	}, &domain.WalletInfo{Address: checksum, ChainId: chainID}, nil
+}
+
+func (s *web3AuthService) findOrCreateUser(ctx context.Context, namespace, checksum string) (*domain.User, error) {
+	lower := strings.ToLower(checksum)
+	// 1. Try by SocialIdentity.
+	user, err := s.userRepo.GetBySocialIdentity(ctx, namespace, domain.ProviderEthereum, lower)
+	if err == nil {
+		return user, nil
+	}
+	if !errors.Is(err, repository.ErrUserNotFound) {
+		return nil, err
+	}
+	// 2. Try by synthetic email.
+	synthEmail := "0x" + strings.TrimPrefix(lower, "0x") + "@wallet.local"
+	user, err = s.userRepo.GetByEmail(ctx, namespace, synthEmail)
+	if err == nil {
+		// Link identity.
+		user.SocialIdentities = append(user.SocialIdentities, domain.SocialIdentity{
+			Provider:   domain.ProviderEthereum,
+			ExternalID: lower,
+			Email:      synthEmail,
+		})
+		if err := s.userRepo.Update(ctx, user); err != nil {
+			return nil, err
+		}
+		return user, nil
+	}
+	if !errors.Is(err, repository.ErrUserNotFound) {
+		return nil, err
+	}
+	// 3. Create.
+	user = &domain.User{
+		ID:        bson.NewObjectID(),
+		Email:     synthEmail,
+		Username:  checksum,
+		Namespace: namespace,
+		Status:    domain.UserStatusActive,
+		SocialIdentities: []domain.SocialIdentity{
+			{
+				Provider:   domain.ProviderEthereum,
+				ExternalID: lower,
+				Email:      synthEmail,
+			},
+		},
+	}
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+func (s *web3AuthService) logFail(ctx context.Context, namespace, reason string, cause error) {
+	if s.auditSvc == nil {
+		return
+	}
+	meta := map[string]any{"reason": reason}
+	if cause != nil {
+		meta["error"] = cause.Error()
+	}
+	s.auditSvc.Log(ctx, domain.EventWeb3SignInFailed, "", namespace, util.GetClientIP(ctx), util.GetUserAgent(ctx), meta)
+}
+
+func containsInt64(haystack []int64, needle int64) bool {
+	for _, v := range haystack {
+		if v == needle {
+			return true
+		}
+	}
+	return false
 }
 func (s *web3AuthService) ListWallets(_ context.Context, _ string) ([]*domain.WalletInfo, error) {
 	return nil, nil
