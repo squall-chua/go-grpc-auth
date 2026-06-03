@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -9,6 +11,7 @@ import (
 	"github.com/squall-chua/go-grpc-auth/internal/repository"
 	"github.com/squall-chua/go-grpc-auth/internal/service/audit"
 	tokenservice "github.com/squall-chua/go-grpc-auth/internal/service/token"
+	"github.com/squall-chua/go-grpc-auth/internal/util"
 )
 
 // VerifyRequest is the input to Web3AuthService.Verify.
@@ -72,9 +75,21 @@ func NewWeb3AuthService(
 }
 
 // method stubs (implemented in Tasks 13-16)
-func (s *web3AuthService) RequestNonce(_ context.Context, _ string, wallet string) (string, error) {
-	_ = common.HexToAddress(wallet) // compile-time check that the eth dep is wired
-	return "", nil
+func (s *web3AuthService) RequestNonce(ctx context.Context, namespace, wallet string) (string, error) {
+	if !common.IsHexAddress(wallet) {
+		return "", errors.New("invalid wallet address")
+	}
+	wallet = strings.ToLower(wallet)
+	nonce := util.RandomString(16)
+	if err := s.nonceStore.Save(ctx, namespace, wallet, nonce, s.nonceTTL); err != nil {
+		return "", err
+	}
+	if s.auditSvc != nil {
+		s.auditSvc.Log(ctx, domain.EventWeb3NonceIssued, "", namespace, util.GetClientIP(ctx), util.GetUserAgent(ctx), map[string]any{
+			"wallet": wallet,
+		})
+	}
+	return nonce, nil
 }
 func (s *web3AuthService) Verify(_ context.Context, _ VerifyRequest) (*domain.TokenResponse, *domain.WalletInfo, error) {
 	return nil, nil, nil
