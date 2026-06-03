@@ -5,8 +5,9 @@ import "context"
 type SocialProvider string
 
 const (
-	ProviderGoogle SocialProvider = "google"
-	ProviderGitHub SocialProvider = "github"
+	ProviderGoogle   SocialProvider = "google"
+	ProviderGitHub   SocialProvider = "github"
+	ProviderEthereum SocialProvider = "ethereum"
 )
 
 type SocialIdentity struct {
