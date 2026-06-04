@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,7 +10,10 @@ import (
 	"github.com/squall-chua/go-grpc-auth/internal/repository"
 	tokenservice "github.com/squall-chua/go-grpc-auth/internal/service/token"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.uber.org/zap"
 )
+
+var logger = zap.NewNop()
 
 type SocialAuthService interface {
 	GetAuthURL(provider domain.SocialProvider, state string, namespace string) (string, error)
@@ -58,25 +62,39 @@ func (s *socialAuthService) HandleCallback(ctx context.Context, provider domain.
 		return nil, err
 	}
 
-	// Find or create user
-	user, err := s.userRepo.GetByEmail(ctx, namespace, socialUser.Email)
-	if err != nil {
-		// Auto-provision user
+	var user *domain.User
+	// Find or create user. When the provider reports EmailVerified=false
+	// (e.g. Apple relay emails), we must not use the email as a key — a
+	// relay address is not a stable identity and could match an unrelated
+	// user. Auto-provision a new user instead.
+	existing, lookupErr := s.userRepo.GetByEmail(ctx, namespace, socialUser.Email)
+	if lookupErr != nil && !errors.Is(lookupErr, repository.ErrUserNotFound) {
+		return nil, fmt.Errorf("failed to lookup user by email: %w", lookupErr)
+	}
+	shouldAutoProvision := lookupErr != nil || !socialUser.EmailVerified
+	if shouldAutoProvision {
+		if lookupErr == nil && !socialUser.EmailVerified {
+			logger.Warn("social callback email is unverified; auto-provisioning new user",
+				zap.String("provider", string(provider)),
+				zap.String("external_id", socialUser.ID),
+			)
+		}
 		user = &domain.User{
 			ID:        bson.NewObjectID(),
 			Email:     socialUser.Email,
-			Username:  socialUser.Email, // Default to email
+			Username:  socialUser.Email,
 			Namespace: namespace,
 			Status:    domain.UserStatusActive,
 			CreatedAt: time.Now().UTC(),
 			UpdatedAt: time.Now().UTC(),
 			SocialIdentities: []domain.SocialIdentity{
 				{
-					Provider:   provider,
-					ExternalID: socialUser.ID,
-					Email:      socialUser.Email,
-					Name:       socialUser.Name,
-					AvatarURL:  socialUser.AvatarURL,
+					Provider:      provider,
+					ExternalID:    socialUser.ID,
+					Email:         socialUser.Email,
+					Name:          socialUser.Name,
+					AvatarURL:     socialUser.AvatarURL,
+					EmailVerified: socialUser.EmailVerified,
 				},
 			},
 		}
@@ -84,6 +102,7 @@ func (s *socialAuthService) HandleCallback(ctx context.Context, provider domain.
 			return nil, fmt.Errorf("failed to create social user: %w", err)
 		}
 	} else {
+		user = existing
 		// Link identity if not already linked
 		linked := false
 		for _, id := range user.SocialIdentities {
@@ -94,11 +113,12 @@ func (s *socialAuthService) HandleCallback(ctx context.Context, provider domain.
 		}
 		if !linked {
 			user.SocialIdentities = append(user.SocialIdentities, domain.SocialIdentity{
-				Provider:   provider,
-				ExternalID: socialUser.ID,
-				Email:      socialUser.Email,
-				Name:       socialUser.Name,
-				AvatarURL:  socialUser.AvatarURL,
+				Provider:      provider,
+				ExternalID:    socialUser.ID,
+				Email:         socialUser.Email,
+				Name:          socialUser.Name,
+				AvatarURL:     socialUser.AvatarURL,
+				EmailVerified: socialUser.EmailVerified,
 			})
 			if err := s.userRepo.Update(ctx, user); err != nil {
 				return nil, fmt.Errorf("failed to link social identity: %w", err)
