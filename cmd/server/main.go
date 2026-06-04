@@ -146,6 +146,22 @@ func main() {
 	if cfg.GitHubClientID != "" {
 		socialProviders = append(socialProviders, authservice.NewGitHubProvider(cfg.GitHubClientID, cfg.GitHubClientSecret, cfg.GitHubRedirectURL))
 	}
+	if cfg.FacebookClientID != "" {
+		socialProviders = append(socialProviders, authservice.NewFacebookProvider(cfg.FacebookClientID, cfg.FacebookClientSecret, cfg.FacebookRedirectURL))
+	}
+	if cfg.TwitterClientID != "" {
+		socialProviders = append(socialProviders, authservice.NewTwitterProvider(cfg.TwitterClientID, cfg.TwitterClientSecret, cfg.TwitterRedirectURL))
+	}
+	if cfg.AppleClientID != "" {
+		// Apple requires a .p8 key path; treat a missing or unreadable file
+		// as a startup failure (loud) so operators do not silently run with
+		// a half-configured Apple provider.
+		appleProvider, err := authservice.NewAppleProvider(cfg.AppleTeamID, cfg.AppleKeyID, cfg.AppleClientID, cfg.ApplePrivateKeyPath, cfg.AppleRedirectURL)
+		if err != nil {
+			logger.Fatal("init apple provider", zap.Error(err))
+		}
+		socialProviders = append(socialProviders, appleProvider)
+	}
 	socialAuthSvc := authservice.NewSocialAuthService(userRepo, tokenSvc, socialProviders)
 
 	// Servers
