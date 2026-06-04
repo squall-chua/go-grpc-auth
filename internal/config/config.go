@@ -21,6 +21,17 @@ type Config struct {
 	GitHubClientID       string
 	GitHubClientSecret   string
 	GitHubRedirectURL    string
+	FacebookClientID     string
+	FacebookClientSecret string
+	FacebookRedirectURL  string
+	TwitterClientID      string
+	TwitterClientSecret  string
+	TwitterRedirectURL   string
+	AppleTeamID          string
+	AppleKeyID           string
+	AppleClientID        string
+	ApplePrivateKeyPath  string
+	AppleRedirectURL     string
 	RateLimitRequests    int
 	RateLimitWindow      time.Duration
 	AccessTokenDuration  time.Duration
@@ -69,6 +80,17 @@ func Load() Config {
 	flag.StringVar(&cfg.GitHubClientID, "github-client-id", getEnv("GITHUB_CLIENT_ID", ""), "GitHub Client ID")
 	flag.StringVar(&cfg.GitHubClientSecret, "github-client-secret", getEnv("GITHUB_CLIENT_SECRET", ""), "GitHub Client Secret")
 	flag.StringVar(&cfg.GitHubRedirectURL, "github-redirect-url", getEnv("GITHUB_REDIRECT_URL", "http://localhost:8080/v1/auth/social/github/callback"), "GitHub Redirect URL")
+	flag.StringVar(&cfg.FacebookClientID, "facebook-client-id", getEnv("FACEBOOK_CLIENT_ID", ""), "Facebook Client ID")
+	flag.StringVar(&cfg.FacebookClientSecret, "facebook-client-secret", getEnv("FACEBOOK_CLIENT_SECRET", ""), "Facebook Client Secret")
+	flag.StringVar(&cfg.FacebookRedirectURL, "facebook-redirect-url", getEnv("FACEBOOK_REDIRECT_URL", "http://localhost:8080/v1/auth/social/facebook/callback"), "Facebook Redirect URL")
+	flag.StringVar(&cfg.TwitterClientID, "twitter-client-id", getEnv("TWITTER_CLIENT_ID", ""), "Twitter Client ID")
+	flag.StringVar(&cfg.TwitterClientSecret, "twitter-client-secret", getEnv("TWITTER_CLIENT_SECRET", ""), "Twitter Client Secret")
+	flag.StringVar(&cfg.TwitterRedirectURL, "twitter-redirect-url", getEnv("TWITTER_REDIRECT_URL", "http://localhost:8080/v1/auth/social/twitter/callback"), "Twitter Redirect URL")
+	flag.StringVar(&cfg.AppleTeamID, "apple-team-id", getEnv("APPLE_TEAM_ID", ""), "Apple Developer Team ID (10 chars)")
+	flag.StringVar(&cfg.AppleKeyID, "apple-key-id", getEnv("APPLE_KEY_ID", ""), "Apple Key ID (10 chars)")
+	flag.StringVar(&cfg.AppleClientID, "apple-client-id", getEnv("APPLE_CLIENT_ID", ""), "Apple Service ID / Client ID")
+	flag.StringVar(&cfg.ApplePrivateKeyPath, "apple-private-key-path", getEnv("APPLE_PRIVATE_KEY_PATH", "keys/apple.p8"), "Apple private key (.p8) file path")
+	flag.StringVar(&cfg.AppleRedirectURL, "apple-redirect-url", getEnv("APPLE_REDIRECT_URL", "http://localhost:8080/v1/auth/social/apple/callback"), "Apple Redirect URL")
 
 	flag.IntVar(&cfg.RateLimitRequests, "rate-limit-requests", getEnvInt("RATE_LIMIT_REQUESTS", 5), "Max requests per window")
 	flag.DurationVar(&cfg.RateLimitWindow, "rate-limit-window", getEnvDuration("RATE_LIMIT_WINDOW", 1*time.Minute), "Rate limit window duration")
