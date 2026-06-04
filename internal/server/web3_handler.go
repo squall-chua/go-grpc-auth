@@ -6,6 +6,7 @@ import (
 
 	"github.com/squall-chua/go-grpc-auth/api/v1/auth"
 	"github.com/squall-chua/go-grpc-auth/internal/domain"
+	"github.com/squall-chua/go-grpc-auth/internal/repository"
 	authservice "github.com/squall-chua/go-grpc-auth/internal/service/auth"
 	"github.com/squall-chua/go-grpc-auth/internal/util"
 	"google.golang.org/grpc/codes"
@@ -17,6 +18,7 @@ type web3GRPCServer struct {
 	auth.UnimplementedWeb3AuthServiceServer
 	service authservice.Web3AuthService
 	issuer  string
+	users   repository.UserRepository
 }
 
 func (s *web3GRPCServer) RequestNonce(ctx context.Context, req *auth.RequestNonceRequest) (*auth.RequestNonceResponse, error) {
@@ -63,7 +65,7 @@ func (s *web3GRPCServer) ListWallets(ctx context.Context, _ *emptypb.Empty) (*au
 	if p == nil {
 		return nil, status.Error(codes.Unauthenticated, "not authenticated")
 	}
-	user, err := loadUserForPrincipal(ctx, p)
+	user, err := loadUserForPrincipal(ctx, p, s.users)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +101,7 @@ func (s *web3GRPCServer) UnlinkWallet(ctx context.Context, req *auth.UnlinkWalle
 	if p == nil {
 		return nil, status.Error(codes.Unauthenticated, "not authenticated")
 	}
-	user, err := loadUserForPrincipal(ctx, p)
+	user, err := loadUserForPrincipal(ctx, p, s.users)
 	if err != nil {
 		return nil, err
 	}
@@ -110,9 +112,9 @@ func (s *web3GRPCServer) UnlinkWallet(ctx context.Context, req *auth.UnlinkWalle
 }
 
 // loadUserForPrincipal fetches the user record backing the principal.
-func loadUserForPrincipal(ctx context.Context, p *auth.Principal) (*domain.User, error) {
-	// The interceptor already loads the user; for now we re-fetch by ID.
-	// Future enhancement: stash the *domain.User in the context.
-	// (out of scope for v1)
-	return nil, status.Error(codes.Unimplemented, "loadUserForPrincipal not wired in handler; see wiring task")
+func loadUserForPrincipal(ctx context.Context, p *auth.Principal, repo repository.UserRepository) (*domain.User, error) {
+	if repo == nil {
+		return nil, status.Error(codes.Internal, "user repository not wired")
+	}
+	return repo.GetByID(ctx, p.UserId)
 }
