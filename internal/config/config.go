@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -21,6 +22,13 @@ type Config struct {
 	GitHubClientID       string
 	GitHubClientSecret   string
 	GitHubRedirectURL    string
+
+	// Web3
+	Web3Enabled         bool
+	Web3DefaultChainIDs []int64
+	Web3NonceTTL        time.Duration
+	Web3Issuer          string
+
 	RateLimitRequests    int
 	RateLimitWindow      time.Duration
 	AccessTokenDuration  time.Duration
@@ -69,6 +77,21 @@ func Load() Config {
 	flag.StringVar(&cfg.GitHubClientID, "github-client-id", getEnv("GITHUB_CLIENT_ID", ""), "GitHub Client ID")
 	flag.StringVar(&cfg.GitHubClientSecret, "github-client-secret", getEnv("GITHUB_CLIENT_SECRET", ""), "GitHub Client Secret")
 	flag.StringVar(&cfg.GitHubRedirectURL, "github-redirect-url", getEnv("GITHUB_REDIRECT_URL", "http://localhost:8080/v1/auth/social/github/callback"), "GitHub Redirect URL")
+
+	flag.BoolVar(&cfg.Web3Enabled, "web3-enabled", getEnvBool("WEB3_ENABLED", true), "Enable web3 sign-in")
+	cfg.Web3DefaultChainIDs = getEnvInt64Slice("WEB3_DEFAULT_CHAIN_IDS", []int64{1, 8453, 42161, 10, 137})
+	flag.Func("web3-default-chain-ids", "Default allowed EVM chain IDs (comma-separated)", func(s string) error {
+		out, err := parseInt64Slice(s)
+		if err != nil {
+			return err
+		}
+		cfg.Web3DefaultChainIDs = out
+		return nil
+	})
+	flag.DurationVar(&cfg.Web3NonceTTL, "web3-nonce-ttl",
+		getEnvDuration("WEB3_NONCE_TTL", 10*time.Minute),
+		"SIWE nonce TTL")
+	flag.StringVar(&cfg.Web3Issuer, "web3-issuer", getEnv("WEB3_ISSUER", ""), "SIWE domain (defaults to Issuer)")
 
 	flag.IntVar(&cfg.RateLimitRequests, "rate-limit-requests", getEnvInt("RATE_LIMIT_REQUESTS", 5), "Max requests per window")
 	flag.DurationVar(&cfg.RateLimitWindow, "rate-limit-window", getEnvDuration("RATE_LIMIT_WINDOW", 1*time.Minute), "Rate limit window duration")
@@ -131,4 +154,29 @@ func getEnvBool(key string, fallback bool) bool {
 		}
 	}
 	return fallback
+}
+
+func parseInt64Slice(s string) ([]int64, error) {
+	parts := strings.Split(s, ",")
+	out := make([]int64, 0, len(parts))
+	for _, p := range parts {
+		n, err := strconv.ParseInt(strings.TrimSpace(p), 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, nil
+}
+
+func getEnvInt64Slice(key string, fallback []int64) []int64 {
+	value, ok := os.LookupEnv(key)
+	if !ok || value == "" {
+		return fallback
+	}
+	out, err := parseInt64Slice(value)
+	if err != nil {
+		return fallback
+	}
+	return out
 }
