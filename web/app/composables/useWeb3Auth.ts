@@ -1,5 +1,5 @@
 import { useAccount, useConnect, useDisconnect, useSignMessage } from '@wagmi/vue'
-import { createSiweMessage } from 'siwe-viem'
+import { SiweMessage } from 'siwe-viem'
 import { useApi } from '~/composables/useApi'
 
 export const useWeb3Auth = () => {
@@ -22,7 +22,7 @@ export const useWeb3Auth = () => {
     })
 
     // 2. Build SIWE message.
-    const message = createSiweMessage({
+    const message = new SiweMessage({
       domain,
       address: address.value,
       uri,
@@ -31,7 +31,7 @@ export const useWeb3Auth = () => {
       nonce,
       issuedAt: new Date().toISOString(),
       statement: 'Sign in with Ethereum to the app.',
-    })
+    }).prepareMessage()
 
     // 3. Sign.
     const signature = await signMessageAsync({ message })
