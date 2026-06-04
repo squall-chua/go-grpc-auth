@@ -13,8 +13,12 @@
     "@nuxt/ui": "^2.11.0",
     "@pinia/nuxt": "^0.11.3",
     "@vueuse/core": "^14.3.0",
+    "@wagmi/connectors": "^8.0.15",
+    "@wagmi/vue": "^0.5.17",
     "nuxt": "^4.4.5",
     "pinia": "^3.0.4",
+    "siwe-viem": "^0.1.0",
+    "viem": "^2.52.0",
     "vue": "^3.4.0",
     "vue-router": "^4.2.0"
   },
