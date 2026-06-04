@@ -52,6 +52,13 @@
             GitHub
           </UButton>
         </div>
+
+        <UButton color="white" block @click="handleWalletLogin" :loading="walletLoading">
+          <template #leading>
+            <UIcon name="i-mdi-ethereum" class="w-4 h-4" />
+          </template>
+          Sign in with Wallet
+        </UButton>
       </form>
 
       <p class="mt-8 text-center text-sm text-slate-500">
@@ -67,10 +74,12 @@
 <script setup>
 import { useAuthStore } from '~/stores/auth'
 import { useApi } from '~/composables/useApi'
+import { useWeb3Auth } from '~/composables/useWeb3Auth'
 
 const auth = useAuthStore()
 const api = useApi()
 const toast = useToast()
+const web3 = useWeb3Auth()
 
 const form = reactive({
   login: '',
@@ -80,6 +89,7 @@ const form = reactive({
 
 const loading = ref(false)
 const rememberMe = ref(false)
+const walletLoading = ref(false)
 
 async function handleLogin() {
   loading.value = true
@@ -127,6 +137,39 @@ async function handleSocialLogin(provider) {
     window.location.href = res.url
   } catch (err) {
     toast.add({ title: 'Social login error', color: 'red' })
+  }
+}
+
+async function handleWalletLogin() {
+  walletLoading.value = true
+  try {
+    if (!web3.isConnected.value) {
+      const c = web3.connectors.value[0]
+      if (!c) throw new Error('No wallet connector available')
+      await web3.connect({ connector: c })
+    }
+    const tokens = await web3.signIn()
+
+    auth.setTokens(tokens)
+    const principal = await api.fetch('/v1/auth/validate', {
+      method: 'POST',
+      body: { token: tokens.access_token }
+    })
+    auth.setUser({
+      id: principal.user_id,
+      email: web3.address.value ?? '',
+      username: '',
+      namespace: principal.namespace,
+      roles: principal.roles || [],
+      permissions: principal.permissions || [],
+    })
+
+    toast.add({ title: 'Welcome!', color: 'green' })
+    navigateTo('/dashboard')
+  } catch (err) {
+    toast.add({ title: 'Wallet login error', description: err?.message ?? 'failed', color: 'red' })
+  } finally {
+    walletLoading.value = false
   }
 }
 </script>
