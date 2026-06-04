@@ -190,12 +190,16 @@ func (s *web3AuthService) findOrCreateUser(ctx context.Context, namespace, check
 	synthEmail := "0x" + strings.TrimPrefix(lower, "0x") + "@wallet.local"
 	user, err = s.userRepo.GetByEmail(ctx, namespace, synthEmail)
 	if err == nil {
-		// Link identity.
-		user.SocialIdentities = append(user.SocialIdentities, domain.SocialIdentity{
-			Provider:   domain.ProviderEthereum,
-			ExternalID: lower,
-			Email:      synthEmail,
-		})
+		// Link identity. Prepend so the index-0 query in
+		// userRepo.GetBySocialIdentity (which only checks the first
+		// element) finds it on subsequent lookups.
+		user.SocialIdentities = append([]domain.SocialIdentity{
+			{
+				Provider:   domain.ProviderEthereum,
+				ExternalID: lower,
+				Email:      synthEmail,
+			},
+		}, user.SocialIdentities...)
 		if err := s.userRepo.Update(ctx, user); err != nil {
 			return nil, err
 		}
@@ -268,6 +272,15 @@ func (s *web3AuthService) LinkWallet(ctx context.Context, req LinkRequest) error
 	addr := strings.ToLower(msg.GetAddress().Hex())
 	chainID := int64(msg.GetChainID())
 
+	// Enforce chain allowlist (same as Verify).
+	allowed, err := s.allowed.AllowedChainIDs(ctx, req.Namespace)
+	if err != nil {
+		return err
+	}
+	if !containsInt64(allowed, chainID) {
+		return fmt.Errorf("chain id %d not allowed for this namespace", chainID)
+	}
+
 	// Reject if already linked to any user.
 	if existing, err := s.userRepo.GetBySocialIdentity(ctx, req.Namespace, domain.ProviderEthereum, addr); err == nil && existing != nil {
 		if s.auditSvc != nil {
@@ -291,12 +304,15 @@ func (s *web3AuthService) LinkWallet(ctx context.Context, req LinkRequest) error
 		return err
 	}
 
-	// Append identity.
-	user.SocialIdentities = append(user.SocialIdentities, domain.SocialIdentity{
-		Provider:   domain.ProviderEthereum,
-		ExternalID: addr,
-		Email:      "",
-	})
+	// Prepend identity so the index-0 query in userRepo.GetBySocialIdentity
+	// (which only checks the first element) finds it on subsequent lookups.
+	user.SocialIdentities = append([]domain.SocialIdentity{
+		{
+			Provider:   domain.ProviderEthereum,
+			ExternalID: addr,
+			Email:      "",
+		},
+	}, user.SocialIdentities...)
 	if err := s.userRepo.Update(ctx, user); err != nil {
 		return err
 	}
@@ -310,7 +326,7 @@ func (s *web3AuthService) LinkWallet(ctx context.Context, req LinkRequest) error
 	return nil
 }
 
-func (s *web3AuthService) UnlinkWallet(_ context.Context, user *domain.User, wallet string) error {
+func (s *web3AuthService) UnlinkWallet(ctx context.Context, user *domain.User, wallet string) error {
 	target := strings.ToLower(wallet)
 	filtered := user.SocialIdentities[:0]
 	for _, id := range user.SocialIdentities {
@@ -335,5 +351,5 @@ func (s *web3AuthService) UnlinkWallet(_ context.Context, user *domain.User, wal
 		}
 	}
 	user.SocialIdentities = filtered
-	return nil
+	return s.userRepo.Update(ctx, user)
 }

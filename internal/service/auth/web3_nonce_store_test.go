@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 )
@@ -97,10 +96,3 @@ func TestMemoryNonceStore_DifferentWallets(t *testing.T) {
 		t.Fatalf("expected consume with original wallet to succeed")
 	}
 }
-
-var _ sync.Locker = (*noopLocker)(nil)
-
-type noopLocker struct{}
-
-func (noopLocker) Lock()   {}
-func (noopLocker) Unlock() {}
