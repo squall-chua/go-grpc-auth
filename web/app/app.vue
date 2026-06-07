@@ -8,9 +8,8 @@
     </a>
     <UNotifications />
     <NuxtLayout>
-      <NuxtTransition>
-        <NuxtPage />
-      </NuxtTransition>
+      <NuxtPage />
+      <NuxtRouteAnnouncer />
     </NuxtLayout>
   </div>
 </template>
@@ -81,7 +80,6 @@ h1, h2, h3, h4, h5, h6,
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 2px;
 }
 
 button, a, [role="button"] {
