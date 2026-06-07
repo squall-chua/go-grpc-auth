@@ -58,11 +58,9 @@ export default defineAppConfig({
       padding: 'p-6',
     },
     table: {
-      rounded: 'rounded-xl',
-      shadow: '',
-      background: 'bg-background-elevated',
-      ring: 'ring-1 ring-border',
       divide: '',
+      thead: '',
+      tbody: '',
       header: {
         base: 'font-heading text-xs uppercase tracking-wider text-text-muted',
         padding: 'px-4 py-3',
@@ -77,13 +75,15 @@ export default defineAppConfig({
         padding: 'px-4 py-3',
       },
       tr: {
-        base: 'hover:bg-cta-subtle/30 transition-colors',
+        base: '',
+        active: 'hover:bg-cta-subtle/30 transition-colors',
       },
       loadingState: {
-        base: 'py-12 text-center text-text-muted',
+        wrapper: 'py-12 text-center text-text-muted',
+        label: 'text-sm',
       },
       emptyState: {
-        base: 'py-12 text-center text-text-muted',
+        wrapper: 'py-12 text-center text-text-muted',
         label: 'text-sm',
       },
     },
@@ -122,14 +122,13 @@ export default defineAppConfig({
       shadow: '',
       background: 'bg-background-elevated',
       ring: 'ring-1 ring-border',
-      base: 'overflow-hidden',
       title: 'font-semibold text-sm',
       description: 'text-sm text-text-muted',
     },
     tooltip: {
       rounded: 'rounded-lg',
       shadow: '',
-      background: 'bg-text text-background',
+      background: 'bg-background-elevated text-text dark:bg-text dark:text-background',
       base: 'text-xs font-normal',
     },
     checkbox: {
@@ -139,31 +138,34 @@ export default defineAppConfig({
     },
     radio: {
       ring: 'ring-1 ring-border',
-      base: 'h-5 w-5 transition-colors',
+      base: 'h-5 w-5 rounded-full transition-colors',
     },
-    link: {
-      base: 'text-cta hover:text-cta-hover hover:underline transition-colors',
-    },
+    // ULink has no ui.link config in Nuxt UI v2; styled per-instance via `class` prop,
+    // or via a global `a` rule in app.vue. Skipped here.
     avatar: {
       rounded: 'rounded-lg',
-      background: 'bg-cta-subtle text-cta-hover ring-1 ring-border',
-      font: 'font-heading font-semibold',
+      background: 'bg-cta-subtle',
+      text: 'font-heading font-semibold text-cta-hover leading-none truncate',
+      ring: 'ring-[1.5px] ring-border',
     },
     pagination: {
       rounded: 'rounded-md',
-      shadow: '',
       default: {
         size: 'md',
         color: 'white',
-      },
-      button: {
-        base: 'transition-colors',
-        active: 'bg-cta text-cta-fg',
-        inactive: 'bg-background-elevated text-text ring-1 ring-border hover:bg-cta-subtle',
+        activeButton: {
+          color: 'primary',
+        },
+        inactiveButton: {
+          color: 'white',
+          class: 'bg-background-elevated text-text ring-1 ring-border hover:bg-cta-subtle',
+        },
       },
     },
     divider: {
-      base: 'border-border',
+      border: {
+        base: 'border-border',
+      },
     },
     select: {
       rounded: 'rounded-lg',
