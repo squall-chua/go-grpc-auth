@@ -2,8 +2,9 @@
   <div class="flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
     <UCard class="w-full max-w-md space-y-8 p-4">
       <div class="text-center">
-        <h2 class="text-3xl font-extrabold tracking-tight">Welcome Back</h2>
-        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
+        <p class="text-xs font-heading font-medium uppercase tracking-wider text-code-text mb-2">Sign in</p>
+        <h1 class="text-3xl font-heading font-semibold tracking-tight">Welcome back</h1>
+        <p class="mt-2 text-sm text-text-muted">
           Enter your credentials to access your account
         </p>
       </div>
