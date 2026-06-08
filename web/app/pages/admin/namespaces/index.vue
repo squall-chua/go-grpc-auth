@@ -33,11 +33,11 @@
         </template>
         <template #actions-data="{ row }">
           <div class="flex gap-1">
-            <UTooltip text="Edit Config">
-              <UButton size="xs" variant="ghost" icon="i-heroicons-pencil-square" @click="openEditModal(row)" />
+            <UTooltip text="Edit config">
+              <UButton size="xs" variant="ghost" icon="i-heroicons-pencil-square" :aria-label="`Edit ${row.name}`" @click="openEditModal(row)" />
             </UTooltip>
             <UTooltip text="Delete">
-              <UButton size="xs" variant="ghost" color="red" icon="i-heroicons-trash" @click="handleDelete(row.id)" />
+              <UButton size="xs" variant="ghost" color="red" icon="i-heroicons-trash" :aria-label="`Delete ${row.name}`" @click="handleDelete(row.id)" />
             </UTooltip>
           </div>
         </template>

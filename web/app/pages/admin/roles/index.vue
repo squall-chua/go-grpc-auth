@@ -23,9 +23,11 @@
           </div>
         </template>
         <template #actions-data="{ row }">
-          <UTooltip text="Delete">
-            <UButton size="xs" variant="ghost" color="red" icon="i-heroicons-trash" @click="handleDelete(row.id)" />
-          </UTooltip>
+          <div class="flex gap-1">
+            <UTooltip text="Delete">
+              <UButton size="xs" variant="ghost" color="red" icon="i-heroicons-trash" :aria-label="`Delete role ${row.name}`" @click="handleDelete(row.id)" />
+            </UTooltip>
+          </div>
         </template>
       </UTable>
     </UCard>
