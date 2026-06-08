@@ -1,9 +1,10 @@
 <template>
   <div class="max-w-2xl mx-auto space-y-8">
-    <header>
-      <h1 class="text-3xl font-bold tracking-tight">Settings</h1>
-      <p class="text-slate-500">Application preferences</p>
-    </header>
+    <PageHeader
+      eyebrow="Settings"
+      title="Preferences"
+      subtitle="Application preferences and security"
+    />
 
     <UCard>
       <template #header>

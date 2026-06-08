@@ -1,9 +1,10 @@
 <template>
   <div class="space-y-8">
-    <header>
-      <h1 class="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Admin Control Center</h1>
-      <p class="text-slate-500 dark:text-slate-400">System-wide management and monitoring</p>
-    </header>
+    <PageHeader
+      eyebrow="Administration"
+      title="Control Center"
+      subtitle="System-wide management and monitoring"
+    />
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <UCard v-for="stat in stats" :key="stat.label" class="relative overflow-hidden group">
