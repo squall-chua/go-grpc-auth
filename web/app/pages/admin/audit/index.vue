@@ -25,7 +25,7 @@
         <template #metadata_json-data="{ row }">
           <div class="max-w-[280px]">
             <JsonView v-if="row.metadata_json" :data="row.metadata_json" label="metadata" />
-            <span v-else class="text-xs text-slate-500">—</span>
+            <span v-else class="text-xs text-text-subtle">—</span>
           </div>
         </template>
       </UTable>
