@@ -1,7 +1,12 @@
 <template>
   <div class="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
-    <ULoadingIcon size="xl" />
-    <p class="text-slate-500 animate-pulse">Authenticating with {{ provider }}...</p>
+    <UIcon name="i-heroicons-arrow-path" class="w-10 h-10 text-cta animate-spin" />
+    <p class="text-xs font-heading font-medium uppercase tracking-wider text-code-text">
+      Authenticating
+    </p>
+    <p class="text-sm text-text-muted">
+      Signing you in via {{ provider }}…
+    </p>
   </div>
 </template>
 
