@@ -1,12 +1,14 @@
 <template>
   <div class="space-y-6">
-    <header class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight">OIDC Clients</h1>
-        <p class="text-sm text-slate-500">Manage OAuth2/OIDC client applications</p>
-      </div>
-      <UButton icon="i-heroicons-plus" @click="openCreateModal">Register Client</UButton>
-    </header>
+    <PageHeader
+      eyebrow="Administration"
+      title="OIDC Clients"
+      subtitle="Manage OAuth2/OIDC client applications"
+    >
+      <template #actions>
+        <UButton icon="i-heroicons-plus" @click="openCreateModal">Register Client</UButton>
+      </template>
+    </PageHeader>
 
     <UCard>
       <div class="flex gap-2 mb-4">

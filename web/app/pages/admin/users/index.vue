@@ -1,11 +1,10 @@
 <template>
   <div class="space-y-6">
-    <header class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight">Users</h1>
-        <p class="text-sm text-slate-500">Manage user identities and access control</p>
-      </div>
-    </header>
+    <PageHeader
+      eyebrow="Administration"
+      title="Users"
+      subtitle="Manage user identities and access control"
+    />
 
     <UCard>
       <div class="flex items-center justify-between mb-4">

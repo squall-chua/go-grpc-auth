@@ -1,12 +1,14 @@
 <template>
   <div class="space-y-6">
-    <header class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight">Permissions</h1>
-        <p class="text-sm text-slate-500">Manage permission definitions</p>
-      </div>
-      <UButton icon="i-heroicons-plus" @click="openCreateModal">Create Permission</UButton>
-    </header>
+    <PageHeader
+      eyebrow="Administration"
+      title="Permissions"
+      subtitle="Manage permission definitions"
+    >
+      <template #actions>
+        <UButton icon="i-heroicons-plus" @click="openCreateModal">Create Permission</UButton>
+      </template>
+    </PageHeader>
 
     <UCard>
       <UInput v-model="search" icon="i-heroicons-magnifying-glass" placeholder="Search by name or namespace..." class="w-80 mb-4" @input="debouncedFetch" />
