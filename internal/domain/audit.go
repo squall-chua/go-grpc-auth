@@ -27,6 +27,13 @@ const (
 	EventNotificationEmailFailed AuditEvent = "NOTIFICATION_EMAIL_FAILED"
 	EventNotificationSMSSent     AuditEvent = "NOTIFICATION_SMS_SENT"
 	EventNotificationSMSFailed   AuditEvent = "NOTIFICATION_SMS_FAILED"
+
+	EventWeb3NonceIssued        AuditEvent = "WEB3_NONCE_ISSUED"
+	EventWeb3SignInSuccess      AuditEvent = "WEB3_SIGNIN_SUCCESS"
+	EventWeb3SignInFailed       AuditEvent = "WEB3_SIGNIN_FAILED"
+	EventWeb3WalletLinked       AuditEvent = "WEB3_WALLET_LINKED"
+	EventWeb3WalletUnlinked     AuditEvent = "WEB3_WALLET_UNLINKED"
+	EventWeb3WalletLinkConflict AuditEvent = "WEB3_WALLET_LINK_CONFLICT"
 )
 
 type AuditLog struct {

@@ -164,10 +164,41 @@ func main() {
 	}
 	socialAuthSvc := authservice.NewSocialAuthService(userRepo, tokenSvc, socialProviders)
 
+	// Web3 / SIWE
+	var web3AuthSvc authservice.Web3AuthService
+	if cfg.Web3Enabled {
+		var nonceStore authservice.NonceStore
+		if cfg.RedisURI != "" {
+			rdbNonce := redis.NewClient(&redis.Options{Addr: cfg.RedisURI})
+			nonceStore = authservice.NewRedisNonceStore(rdbNonce)
+		} else {
+			nonceStore = authservice.NewMemoryNonceStore()
+			logger.Info("Web3 nonce store: in-memory fallback")
+		}
+		issuer := cfg.Web3Issuer
+		if issuer == "" {
+			issuer = cfg.Issuer
+		}
+		chainResolver := newNamespaceChainResolver(nsRepo, cfg.Web3DefaultChainIDs)
+		web3AuthSvc = authservice.NewWeb3AuthService(
+			issuer, nonceStore, cfg.Web3NonceTTL,
+			chainResolver, userRepo, tokenSvc, auditSvc,
+		)
+	} else {
+		// Always provide a non-nil stub so gRPC registration doesn't blow up.
+		web3AuthSvc = authservice.NewWeb3AuthService(
+			"", authservice.NewMemoryNonceStore(), cfg.Web3NonceTTL,
+			noopChainResolver{}, userRepo, tokenSvc, auditSvc,
+		)
+	}
+
 	// Servers
 	grpcSrv := server.NewGRPCServer(server.GRPCServerConfig{
 		AuthService:       authSvc,
 		SocialAuthService: socialAuthSvc,
+		Web3AuthService:   web3AuthSvc,
+		Web3Issuer:        cfg.Issuer,
+		UserRepo:          userRepo,
 		AdminService:      adminSvc,
 		NamespaceService:  nsSvc,
 		NotifRegistry:     notifRegistry,
@@ -248,4 +279,32 @@ type auditEmitterAdapter struct {
 
 func (a auditEmitterAdapter) LogNotification(ctx context.Context, event, userID, namespace string, metadata any) {
 	a.svc.Log(ctx, domain.AuditEvent(event), userID, namespace, "", "", metadata)
+}
+
+type namespaceChainResolver struct {
+	repo     repository.NamespaceRepository
+	defaults []int64
+}
+
+func newNamespaceChainResolver(repo repository.NamespaceRepository, defaults []int64) *namespaceChainResolver {
+	return &namespaceChainResolver{repo: repo, defaults: defaults}
+}
+
+func (r *namespaceChainResolver) AllowedChainIDs(ctx context.Context, namespace string) ([]int64, error) {
+	ns, err := r.repo.GetByName(ctx, namespace)
+	if err != nil {
+		// Fall back to defaults if namespace not found; sign-in still works
+		// for a freshly-created default namespace.
+		return r.defaults, nil
+	}
+	if len(ns.Config.AllowedWeb3ChainIds) == 0 {
+		return r.defaults, nil
+	}
+	return ns.Config.AllowedWeb3ChainIds, nil
+}
+
+type noopChainResolver struct{}
+
+func (noopChainResolver) AllowedChainIDs(_ context.Context, _ string) ([]int64, error) {
+	return nil, nil
 }

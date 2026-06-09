@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package auth.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "api/proto/options/v1/auth_rule.proto";
+import "api/proto/auth/v1/auth.proto";
+
+option go_package = "github.com/squall-chua/go-grpc-auth/api/v1/auth;auth";
+
+service Web3AuthService {
+  rpc RequestNonce(RequestNonceRequest) returns (RequestNonceResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/web3/nonce"
+      body: "*"
+    };
+    option (options.v1.rule) = {
+      public: true
+    };
+  }
+
+  rpc Verify(VerifyRequest) returns (TokenPair) {
+    option (google.api.http) = {
+      post: "/v1/auth/web3/verify"
+      body: "*"
+    };
+    option (options.v1.rule) = {
+      public: true
+    };
+  }
+
+  rpc ListWallets(google.protobuf.Empty) returns (ListWalletsResponse) {
+    option (google.api.http) = {
+      get: "/v1/auth/web3/wallets"
+    };
+  }
+
+  rpc LinkWallet(LinkWalletRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v1/auth/web3/wallets/link"
+      body: "*"
+    };
+  }
+
+  rpc UnlinkWallet(UnlinkWalletRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v1/auth/web3/wallets/unlink"
+      body: "*"
+    };
+  }
+}
+
+message RequestNonceRequest {
+  string namespace = 1;
+  string wallet = 2;
+}
+
+message RequestNonceResponse {
+  string nonce = 1;
+  string domain = 2;
+  string uri = 3;
+}
+
+message VerifyRequest {
+  string namespace = 1;
+  string message = 2;
+  string signature = 3;
+}
+
+message LinkWalletRequest {
+  string message = 1;
+  string signature = 2;
+}
+
+message UnlinkWalletRequest {
+  string wallet = 1;
+}
+
+message Wallet {
+  string address = 1;
+  int64 chain_id = 2;
+}
+
+message ListWalletsResponse {
+  repeated Wallet wallets = 1;
+}

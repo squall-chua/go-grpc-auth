@@ -10,6 +10,7 @@ const (
 	ProviderFacebook SocialProvider = "facebook"
 	ProviderTwitter  SocialProvider = "twitter"
 	ProviderApple    SocialProvider = "apple"
+	ProviderEthereum SocialProvider = "ethereum"
 )
 
 type SocialIdentity struct {

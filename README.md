@@ -162,6 +162,20 @@ Social login providers (optional):
 |--------|----------|-------------|
 | GET | `/v1/admin/audit` | List audit logs (filter by event, user, time range) |
 
+## Web3 / SIWE Sign-In
+
+Users can sign in with an Ethereum (or other EVM) wallet via SIWE (EIP-4361).
+The server issues a nonce, the wallet signs a SIWE message, the server
+verifies the signature, and on success issues the standard
+access/refresh/ID token pair.
+
+Supported chains are configured per-namespace via
+`NamespaceConfig.AllowedWeb3ChainIds`. The default (when unset) is
+`[1, 8453, 42161, 10, 137]` (Ethereum, Base, Arbitrum, Optimism, Polygon).
+
+v1 supports EOA wallets only. Smart-contract wallets (Safe, Argent) return
+a clear error.
+
 ## Architecture
 
 ```

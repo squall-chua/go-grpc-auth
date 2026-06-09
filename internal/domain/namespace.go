@@ -23,6 +23,7 @@ const (
 type NamespaceConfig struct {
 	MFAPolicy              MFAPolicy                   `bson:"mfa_policy"`
 	AllowedSocialProviders []string                    `bson:"allowed_social_providers"`
+	AllowedWeb3ChainIds    []int64                     `bson:"allowed_web3_chain_ids"`
 	PasswordPolicy         PasswordPolicy              `bson:"password_policy"`
 	IPAllowList            []string                    `bson:"ip_allow_list"`
 	IPDenyList             []string                    `bson:"ip_deny_list"`

@@ -21,6 +21,9 @@
       "name": "OIDCService"
     },
     {
+      "name": "Web3AuthService"
+    },
+    {
       "name": "GreeterService"
     }
   ],
@@ -1710,6 +1713,158 @@
         ]
       }
     },
+    "/v1/auth/web3/nonce": {
+      "post": {
+        "operationId": "Web3AuthService_RequestNonce",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RequestNonceResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1RequestNonceRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Web3AuthService"
+        ]
+      }
+    },
+    "/v1/auth/web3/verify": {
+      "post": {
+        "operationId": "Web3AuthService_Verify",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1TokenPair"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1VerifyRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Web3AuthService"
+        ]
+      }
+    },
+    "/v1/auth/web3/wallets": {
+      "get": {
+        "operationId": "Web3AuthService_ListWallets",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListWalletsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "Web3AuthService"
+        ]
+      }
+    },
+    "/v1/auth/web3/wallets/link": {
+      "post": {
+        "operationId": "Web3AuthService_LinkWallet",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1LinkWalletRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Web3AuthService"
+        ]
+      }
+    },
+    "/v1/auth/web3/wallets/unlink": {
+      "post": {
+        "operationId": "Web3AuthService_UnlinkWallet",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1UnlinkWalletRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Web3AuthService"
+        ]
+      }
+    },
     "/v1/greeter/hello": {
       "post": {
         "operationId": "GreeterService_SayHello",
@@ -2233,6 +2388,17 @@
         }
       }
     },
+    "v1LinkWalletRequest": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "signature": {
+          "type": "string"
+        }
+      }
+    },
     "v1ListAuditLogsResponse": {
       "type": "object",
       "properties": {
@@ -2379,6 +2545,18 @@
         "totalCount": {
           "type": "integer",
           "format": "int32"
+        }
+      }
+    },
+    "v1ListWalletsResponse": {
+      "type": "object",
+      "properties": {
+        "wallets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Wallet"
+          }
         }
       }
     },
@@ -2663,6 +2841,31 @@
         }
       }
     },
+    "v1RequestNonceRequest": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "type": "string"
+        },
+        "wallet": {
+          "type": "string"
+        }
+      }
+    },
+    "v1RequestNonceResponse": {
+      "type": "object",
+      "properties": {
+        "nonce": {
+          "type": "string"
+        },
+        "domain": {
+          "type": "string"
+        },
+        "uri": {
+          "type": "string"
+        }
+      }
+    },
     "v1Role": {
       "type": "object",
       "properties": {
@@ -2790,6 +2993,14 @@
         }
       }
     },
+    "v1UnlinkWalletRequest": {
+      "type": "object",
+      "properties": {
+        "wallet": {
+          "type": "string"
+        }
+      }
+    },
     "v1User": {
       "type": "object",
       "properties": {
@@ -2882,6 +3093,32 @@
         },
         "code": {
           "type": "string"
+        }
+      }
+    },
+    "v1VerifyRequest": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "signature": {
+          "type": "string"
+        }
+      }
+    },
+    "v1Wallet": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "type": "string"
+        },
+        "chainId": {
+          "type": "string",
+          "format": "int64"
         }
       }
     }

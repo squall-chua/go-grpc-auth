@@ -16,6 +16,7 @@ import (
 
 type TokenService interface {
 	GenerateTokenPair(ctx context.Context, user *domain.User, audience string, scopes []string) (*domain.TokenPair, error)
+	GenerateTokenPairWithClaims(ctx context.Context, user *domain.User, audience string, scopes []string, custom map[string]any) (*domain.TokenPair, error)
 	ValidateAccessToken(ctx context.Context, token string) (*domain.Principal, error)
 	RefreshToken(ctx context.Context, refreshToken string) (*domain.TokenPair, error)
 	RevokeTokens(ctx context.Context, accessToken, refreshToken string) error
@@ -59,6 +60,10 @@ func NewTokenService(
 }
 
 func (s *tokenService) GenerateTokenPair(ctx context.Context, user *domain.User, audience string, scopes []string) (*domain.TokenPair, error) {
+	return s.GenerateTokenPairWithClaims(ctx, user, audience, scopes, nil)
+}
+
+func (s *tokenService) GenerateTokenPairWithClaims(ctx context.Context, user *domain.User, audience string, scopes []string, custom map[string]any) (*domain.TokenPair, error) {
 	accessToken, accessHash, err := s.generateOpaqueToken()
 	if err != nil {
 		return nil, err
@@ -102,7 +107,7 @@ func (s *tokenService) GenerateTokenPair(ctx context.Context, user *domain.User,
 	if aud == "" {
 		aud = s.issuer
 	}
-	idToken, err := s.GenerateIDToken(ctx, user, aud, "")
+	idToken, err := s.GenerateIDTokenWithClaims(ctx, user, aud, "", custom)
 	if err != nil {
 		return nil, err
 	}
@@ -201,6 +206,10 @@ func (s *tokenService) RevokeAllForUser(ctx context.Context, userID string) erro
 }
 
 func (s *tokenService) GenerateIDToken(ctx context.Context, user *domain.User, audience, nonce string) (string, error) {
+	return s.GenerateIDTokenWithClaims(ctx, user, audience, nonce, nil)
+}
+
+func (s *tokenService) GenerateIDTokenWithClaims(ctx context.Context, user *domain.User, audience, nonce string, custom map[string]any) (string, error) {
 	if s.privateKey == nil {
 		return "", fmt.Errorf("OIDC not configured: private key missing")
 	}
@@ -220,6 +229,9 @@ func (s *tokenService) GenerateIDToken(ctx context.Context, user *domain.User, a
 
 	if nonce != "" {
 		claims["nonce"] = nonce
+	}
+	for k, v := range custom {
+		claims[k] = v
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
