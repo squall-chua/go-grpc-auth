@@ -5,6 +5,10 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   modules: ["@nuxt/ui", "@pinia/nuxt"],
 
+  app: {
+    pageTransition: { name: 'page', mode: 'out-in' },
+  },
+
   routeRules: {
     "/**": { ssr: false },
   },

@@ -1,12 +1,14 @@
 <template>
   <div class="space-y-6">
-    <header class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight">Roles</h1>
-        <p class="text-sm text-slate-500">Manage RBAC role definitions</p>
-      </div>
-      <UButton icon="i-heroicons-plus" @click="openCreateModal">Create Role</UButton>
-    </header>
+    <PageHeader
+      eyebrow="Administration"
+      title="Roles"
+      subtitle="Manage RBAC role definitions"
+    >
+      <template #actions>
+        <UButton icon="i-heroicons-plus" @click="openCreateModal">Create Role</UButton>
+      </template>
+    </PageHeader>
 
     <UCard>
       <div class="flex items-center gap-2 mb-4">
@@ -21,9 +23,11 @@
           </div>
         </template>
         <template #actions-data="{ row }">
-          <UTooltip text="Delete">
-            <UButton size="xs" variant="ghost" color="red" icon="i-heroicons-trash" @click="handleDelete(row.id)" />
-          </UTooltip>
+          <div class="flex gap-1">
+            <UTooltip text="Delete">
+              <UButton size="xs" variant="ghost" color="red" icon="i-heroicons-trash" :aria-label="`Delete role ${row.name}`" @click="handleDelete(row.id)" />
+            </UTooltip>
+          </div>
         </template>
       </UTable>
     </UCard>

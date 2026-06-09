@@ -1,23 +1,36 @@
 <template>
   <div class="max-w-2xl mx-auto space-y-8">
-    <header>
-      <h1 class="text-3xl font-bold tracking-tight">Profile</h1>
-      <p class="text-slate-500">Manage your account settings</p>
-    </header>
+    <PageHeader
+      eyebrow="Account"
+      title="Profile"
+      subtitle="Manage your account settings"
+    />
 
     <UCard>
       <template #header>
         <h3 class="font-semibold">Account Information</h3>
       </template>
-      <div class="grid grid-cols-2 gap-4 text-sm">
-        <div><span class="text-slate-500">Username:</span> {{ auth.user?.username }}</div>
-        <div><span class="text-slate-500">Email:</span> {{ auth.user?.email }}</div>
-        <div><span class="text-slate-500">Namespace:</span> {{ auth.user?.namespace }}</div>
-        <div>
-          <span class="text-slate-500">Roles:</span>
-          <UBadge v-for="role in auth.user?.roles" :key="role" color="primary" variant="subtle" size="xs" class="ml-1">{{ role }}</UBadge>
+      <dl class="space-y-3 text-sm">
+        <div class="flex items-center gap-3">
+          <dt class="font-heading text-xs uppercase tracking-wider text-text-muted w-28 shrink-0">Username</dt>
+          <dd class="text-text">{{ auth.user?.username }}</dd>
         </div>
-      </div>
+        <div class="flex items-center gap-3">
+          <dt class="font-heading text-xs uppercase tracking-wider text-text-muted w-28 shrink-0">Email</dt>
+          <dd class="text-text">{{ auth.user?.email }}</dd>
+        </div>
+        <div class="flex items-center gap-3">
+          <dt class="font-heading text-xs uppercase tracking-wider text-text-muted w-28 shrink-0">Namespace</dt>
+          <dd class="font-mono text-text">{{ auth.user?.namespace }}</dd>
+        </div>
+        <div class="flex items-start gap-3">
+          <dt class="font-heading text-xs uppercase tracking-wider text-text-muted w-28 shrink-0">Roles</dt>
+          <dd class="flex flex-wrap gap-1">
+            <UBadge v-for="role in auth.user?.roles" :key="role" color="primary" variant="subtle" size="xs">{{ role }}</UBadge>
+            <span v-if="!auth.user?.roles?.length" class="text-text-subtle">No roles</span>
+          </dd>
+        </div>
+      </dl>
     </UCard>
 
     <UCard>

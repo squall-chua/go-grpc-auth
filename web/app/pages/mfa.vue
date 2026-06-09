@@ -2,11 +2,9 @@
   <div class="flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
     <UCard class="w-full max-w-md space-y-6 p-4">
       <div class="text-center">
-        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 mb-4">
-          <UIcon name="i-heroicons-shield-check" class="w-8 h-8" />
-        </div>
-        <h2 class="text-3xl font-extrabold tracking-tight">Two-Step Verification</h2>
-        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
+        <p class="text-xs font-heading font-medium uppercase tracking-wider text-code-text mb-2">Two-step verification</p>
+        <h1 class="text-3xl font-heading font-semibold tracking-tight">Verify your identity</h1>
+        <p class="mt-2 text-sm text-text-muted">
           {{ subtitle }}
         </p>
       </div>

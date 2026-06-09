@@ -1,11 +1,10 @@
 <template>
   <div class="space-y-6">
-    <header class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight">Users</h1>
-        <p class="text-sm text-slate-500">Manage user identities and access control</p>
-      </div>
-    </header>
+    <PageHeader
+      eyebrow="Administration"
+      title="Users"
+      subtitle="Manage user identities and access control"
+    />
 
     <UCard>
       <div class="flex items-center justify-between mb-4">
@@ -44,11 +43,18 @@
 
         <template #actions-data="{ row }">
           <div class="flex gap-1">
-            <UTooltip text="View Details">
-              <UButton size="xs" variant="ghost" icon="i-heroicons-eye" @click="openDetail(row)" />
+            <UTooltip text="View details">
+              <UButton size="xs" variant="ghost" icon="i-heroicons-eye" :aria-label="`View ${row.username}`" @click="openDetail(row)" />
             </UTooltip>
             <UTooltip :text="statusLabel(row.status) === 'Banned' ? 'Activate' : 'Ban'">
-              <UButton size="xs" variant="ghost" :color="statusLabel(row.status) === 'Banned' ? 'green' : 'red'" :icon="statusLabel(row.status) === 'Banned' ? 'i-heroicons-check-circle' : 'i-heroicons-no-symbol'" @click="selectedUser = row; updateStatus(statusLabel(row.status) === 'Banned' ? 'USER_STATUS_ACTIVE' : 'USER_STATUS_BANNED')" />
+              <UButton
+                size="xs"
+                variant="ghost"
+                :color="statusLabel(row.status) === 'Banned' ? 'green' : 'red'"
+                :icon="statusLabel(row.status) === 'Banned' ? 'i-heroicons-check-circle' : 'i-heroicons-no-symbol'"
+                :aria-label="statusLabel(row.status) === 'Banned' ? `Activate ${row.username}` : `Ban ${row.username}`"
+                @click="selectedUser = row; updateStatus(statusLabel(row.status) === 'Banned' ? 'USER_STATUS_ACTIVE' : 'USER_STATUS_BANNED')"
+              />
             </UTooltip>
           </div>
         </template>

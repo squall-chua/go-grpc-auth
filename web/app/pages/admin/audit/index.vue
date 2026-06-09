@@ -1,9 +1,10 @@
 <template>
   <div class="space-y-6">
-    <header>
-      <h1 class="text-2xl font-bold tracking-tight">Audit Logs</h1>
-      <p class="text-sm text-slate-500">View security events and user activity</p>
-    </header>
+    <PageHeader
+      eyebrow="Security"
+      title="Audit Logs"
+      subtitle="View security events and user activity"
+    />
 
     <UCard>
       <div class="flex flex-wrap gap-2 mb-4">
@@ -22,7 +23,10 @@
           <span class="text-xs font-mono">{{ formatTime(row.timestamp) }}</span>
         </template>
         <template #metadata_json-data="{ row }">
-          <span class="text-xs font-mono text-slate-500 truncate block max-w-[200px]">{{ row.metadata_json || '-' }}</span>
+          <div class="max-w-[280px]">
+            <JsonView v-if="row.metadata_json" :data="row.metadata_json" label="metadata" />
+            <span v-else class="text-xs text-text-subtle">—</span>
+          </div>
         </template>
       </UTable>
 

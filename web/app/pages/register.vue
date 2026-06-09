@@ -2,9 +2,10 @@
   <div class="flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
     <UCard class="w-full max-w-md space-y-8 p-4">
       <div class="text-center">
-        <h2 class="text-3xl font-extrabold tracking-tight">Create Account</h2>
-        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          Join {{ config.public.name }} and secure your digital identity
+        <p class="text-xs font-heading font-medium uppercase tracking-wider text-code-text mb-2">Create account</p>
+        <h1 class="text-3xl font-heading font-semibold tracking-tight">Join {{ config.public.name }}</h1>
+        <p class="mt-2 text-sm text-text-muted">
+          Secure your digital identity
         </p>
       </div>
 

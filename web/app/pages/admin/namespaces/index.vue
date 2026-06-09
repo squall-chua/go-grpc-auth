@@ -1,12 +1,14 @@
 <template>
   <div class="space-y-6">
-    <header class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight">Namespaces</h1>
-        <p class="text-sm text-slate-500">Manage tenant isolation and security policies</p>
-      </div>
-      <UButton icon="i-heroicons-plus" @click="openCreateModal">Create Namespace</UButton>
-    </header>
+    <PageHeader
+      eyebrow="Administration"
+      title="Namespaces"
+      subtitle="Manage tenant isolation and security policies"
+    >
+      <template #actions>
+        <UButton icon="i-heroicons-plus" @click="openCreateModal">Create Namespace</UButton>
+      </template>
+    </PageHeader>
 
     <UCard>
       <UInput v-model="search" icon="i-heroicons-magnifying-glass" placeholder="Search namespaces..." class="max-w-xs mb-4" @input="debouncedFetch" />
@@ -31,11 +33,11 @@
         </template>
         <template #actions-data="{ row }">
           <div class="flex gap-1">
-            <UTooltip text="Edit Config">
-              <UButton size="xs" variant="ghost" icon="i-heroicons-pencil-square" @click="openEditModal(row)" />
+            <UTooltip text="Edit config">
+              <UButton size="xs" variant="ghost" icon="i-heroicons-pencil-square" :aria-label="`Edit ${row.name}`" @click="openEditModal(row)" />
             </UTooltip>
             <UTooltip text="Delete">
-              <UButton size="xs" variant="ghost" color="red" icon="i-heroicons-trash" @click="handleDelete(row.id)" />
+              <UButton size="xs" variant="ghost" color="red" icon="i-heroicons-trash" :aria-label="`Delete ${row.name}`" @click="handleDelete(row.id)" />
             </UTooltip>
           </div>
         </template>

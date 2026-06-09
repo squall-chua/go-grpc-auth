@@ -1,12 +1,14 @@
 <template>
   <div class="space-y-6">
-    <header class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight">OIDC Clients</h1>
-        <p class="text-sm text-slate-500">Manage OAuth2/OIDC client applications</p>
-      </div>
-      <UButton icon="i-heroicons-plus" @click="openCreateModal">Register Client</UButton>
-    </header>
+    <PageHeader
+      eyebrow="Administration"
+      title="OIDC Clients"
+      subtitle="Manage OAuth2/OIDC client applications"
+    >
+      <template #actions>
+        <UButton icon="i-heroicons-plus" @click="openCreateModal">Register Client</UButton>
+      </template>
+    </PageHeader>
 
     <UCard>
       <div class="flex gap-2 mb-4">
@@ -26,13 +28,13 @@
         <template #actions-data="{ row }">
           <div class="flex gap-1">
             <UTooltip text="Edit">
-              <UButton size="xs" variant="ghost" icon="i-heroicons-pencil-square" @click="openEditModal(row)" />
+              <UButton size="xs" variant="ghost" icon="i-heroicons-pencil-square" :aria-label="`Edit ${row.name}`" @click="openEditModal(row)" />
             </UTooltip>
-            <UTooltip text="Rotate Secret">
-              <UButton size="xs" variant="ghost" color="orange" icon="i-heroicons-arrow-path" @click="rotateSecret(row.client_id)" />
+            <UTooltip text="Rotate secret">
+              <UButton size="xs" variant="ghost" color="orange" icon="i-heroicons-arrow-path" :aria-label="`Rotate secret for ${row.name}`" @click="rotateSecret(row.client_id)" />
             </UTooltip>
             <UTooltip text="Delete">
-              <UButton size="xs" variant="ghost" color="red" icon="i-heroicons-trash" @click="handleDelete(row.client_id)" />
+              <UButton size="xs" variant="ghost" color="red" icon="i-heroicons-trash" :aria-label="`Delete ${row.name}`" @click="handleDelete(row.client_id)" />
             </UTooltip>
           </div>
         </template>
